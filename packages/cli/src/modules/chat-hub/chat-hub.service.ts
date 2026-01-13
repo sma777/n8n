@@ -173,6 +173,7 @@ export class ChatHubService {
 		const tz = timeZone ?? this.globalConfig.generic.timezone;
 
 		const credentialId = this.getModelCredential(model, credentials);
+		const turnId = uuidv4();
 
 		let processedAttachments: IBinaryData[] = [];
 		let workflow: PreparedChatWorkflow;
@@ -220,6 +221,7 @@ export class ChatHubService {
 					tools,
 					processedAttachments,
 					tz,
+					turnId,
 					trx,
 				);
 			});
@@ -272,6 +274,7 @@ export class ChatHubService {
 				model,
 				res,
 				workflow.responseMode,
+				user,
 			);
 		}
 
@@ -283,7 +286,8 @@ export class ChatHubService {
 			workflow.executionData,
 			sessionId,
 			messageId,
-			null,
+			null, // retryOfMessageId
+			turnId,
 			workflow.responseMode,
 		);
 
@@ -309,6 +313,7 @@ export class ChatHubService {
 		const { sessionId, editId, messageId, message, model, credentials, timeZone } = payload;
 		const tz = timeZone ?? this.globalConfig.generic.timezone;
 
+		const turnId = uuidv4();
 		let workflow: PreparedChatWorkflow | null = null;
 		let newStoredAttachments: IBinaryData[] = [];
 
@@ -383,6 +388,7 @@ export class ChatHubService {
 						session.tools,
 						attachments,
 						tz,
+						turnId,
 						trx,
 					);
 				}
@@ -415,8 +421,9 @@ export class ChatHubService {
 			workflowData,
 			executionData,
 			sessionId,
-			messageId,
-			null,
+			messageId, // previousMessageId (the edited human message)
+			null, // retryOfMessageId
+			turnId,
 			responseMode,
 		);
 	}
@@ -424,6 +431,8 @@ export class ChatHubService {
 	async regenerateAIMessage(res: Response, user: User, payload: RegenerateMessagePayload) {
 		const { sessionId, retryId, model, credentials, timeZone } = payload;
 		const tz = timeZone ?? this.globalConfig.generic.timezone;
+
+		const turnId = uuidv4();
 
 		const { retryOfMessageId, previousMessageId, workflow } =
 			await this.messageRepository.manager.transaction(async (trx) => {
@@ -469,6 +478,7 @@ export class ChatHubService {
 					session.tools,
 					attachments,
 					tz,
+					turnId,
 					trx,
 				);
 
@@ -488,6 +498,7 @@ export class ChatHubService {
 			sessionId,
 			previousMessageId,
 			retryOfMessageId,
+			turnId,
 			workflow.responseMode,
 		);
 	}
@@ -502,15 +513,21 @@ export class ChatHubService {
 		tools: INode[],
 		attachments: IBinaryData[],
 		timeZone: string,
+		turnId: ChatMessageId,
 		trx: EntityManager,
 	) {
 		if (model.provider === 'n8n') {
+			if (!turnId) {
+				throw new UnexpectedError('Turn ID is required for workflow agent');
+			}
 			return await this.prepareWorkflowAgentWorkflow(
 				user,
 				sessionId,
 				model.workflowId,
 				message,
 				attachments,
+				turnId,
+				history,
 				trx,
 			);
 		}
@@ -639,6 +656,8 @@ export class ChatHubService {
 		workflowId: string,
 		message: string,
 		attachments: IBinaryData[],
+		turnId: ChatMessageId,
+		history: ChatHubMessage[],
 		trx: EntityManager,
 	) {
 		const workflow = await this.workflowFinderService.findWorkflowForUser(
@@ -721,9 +740,29 @@ export class ChatHubService {
 			},
 		});
 
+		// Inject turnId and previousTurnIds into any MemoryChatHub nodes.
+		// turnId is a correlation ID generated BEFORE workflow execution starts.
+		// Memory entries created during this turn will be linked by this ID.
+		// On regeneration, new turnId -> new memory -> old AI message is superseded -> old memory excluded.
+		// previousTurnIds contains the turnIds of AI messages in the conversation history for memory loading.
+		const MEMORY_CHAT_HUB_NODE_TYPE = '@n8n/n8n-nodes-langchain.memoryChatHub';
+		const nodes = workflow.activeVersion.nodes.map((node) => {
+			if (node.type === MEMORY_CHAT_HUB_NODE_TYPE) {
+				return {
+					...node,
+					parameters: {
+						...node.parameters,
+						turnId,
+						previousTurnIds: this.extractPreviousTurnIds(history),
+					},
+				};
+			}
+			return node;
+		});
+
 		const workflowData: IWorkflowBase = {
 			...workflow,
-			nodes: workflow.activeVersion.nodes,
+			nodes,
 			connections: workflow.activeVersion.connections,
 			// Force saving data on successful executions for custom agent workflows
 			// to be able to read the results after execution.
@@ -795,6 +834,7 @@ export class ChatHubService {
 		sessionId: ChatSessionId,
 		previousMessageId: ChatMessageId,
 		retryOfMessageId: ChatMessageId | null = null,
+		turnId: ChatMessageId | null = null,
 		executionMode: WorkflowExecuteMode = 'chat',
 		responseMode: ChatTriggerResponseMode,
 	) {
@@ -816,6 +856,7 @@ export class ChatHubService {
 				sessionId,
 				previousMessageId,
 				retryOfMessageId,
+				turnId,
 				executionMode,
 				responseMode,
 			);
@@ -829,6 +870,7 @@ export class ChatHubService {
 				sessionId,
 				previousMessageId,
 				retryOfMessageId,
+				turnId,
 				executionMode,
 			);
 		}
@@ -843,6 +885,7 @@ export class ChatHubService {
 		sessionId: string,
 		previousMessageId: string,
 		retryOfMessageId: string | null,
+		turnId: string | null,
 		executionMode: WorkflowExecuteMode,
 		responseMode: NonStreamingResponseMode,
 	) {
@@ -870,6 +913,7 @@ export class ChatHubService {
 			model,
 			previousMessageId,
 			retryOfMessageId,
+			turnId,
 		);
 
 		try {
@@ -918,6 +962,7 @@ export class ChatHubService {
 						model,
 						res,
 						responseMode,
+						user,
 					);
 				}
 			}
@@ -951,6 +996,7 @@ export class ChatHubService {
 		model: ChatHubConversationModel,
 		res: Response,
 		responseMode: 'responseNodes',
+		user: User,
 	) {
 		// Mark the waiting message as successful
 		await this.messageRepository.updateChatMessage(previousMessageId, {
@@ -958,7 +1004,7 @@ export class ChatHubService {
 		});
 
 		while (true) {
-			await this.resumeExecution(sessionId, execution, message);
+			await this.resumeExecution(sessionId, execution, message, user);
 			previousMessageId = messageId;
 			messageId = uuidv4();
 
@@ -970,6 +1016,7 @@ export class ChatHubService {
 				model,
 				previousMessageId,
 				null,
+				null, // turnId - null for resumed executions
 			);
 
 			await this.waitForExecutionCompletion(execution.id);
@@ -1090,6 +1137,7 @@ export class ChatHubService {
 		model: ChatHubConversationModel,
 		previousMessageId: string,
 		retryOfMessageId: string | null,
+		turnId: string | null,
 	) {
 		const beginChunk: MessageChunk = {
 			type: 'begin',
@@ -1118,6 +1166,7 @@ export class ChatHubService {
 			model,
 			previousMessageId,
 			retryOfMessageId,
+			turnId,
 			status: 'running',
 		});
 	}
@@ -1172,12 +1221,17 @@ export class ChatHubService {
 		sessionId: ChatSessionId,
 		execution: IExecutionResponse,
 		message: string,
+		user: User,
 	) {
-		await this.executionManager.runWorkflow(execution, {
-			action: 'sendMessage',
-			chatInput: message,
-			sessionId,
-		});
+		await this.executionManager.runWorkflow(
+			execution,
+			{
+				action: 'sendMessage',
+				chatInput: message,
+				sessionId,
+			},
+			user.id,
+		);
 	}
 
 	private async executeWithStreaming(
@@ -1189,6 +1243,7 @@ export class ChatHubService {
 		sessionId: string,
 		previousMessageId: string,
 		retryOfMessageId: string | null,
+		turnId: string | null, // Correlation ID for n8n workflow agents - links memory to this AI message
 		executionMode: WorkflowExecuteMode,
 	) {
 		// Capture the streaming response as it's being generated to save
@@ -1203,6 +1258,7 @@ export class ChatHubService {
 					executionId,
 					model,
 					retryOfMessageId,
+					turnId, // Link memory entries to this AI message via turnId
 				});
 			},
 			onItem: async (_message, _chunk) => {
@@ -1413,6 +1469,7 @@ export class ChatHubService {
 		sessionId: ChatSessionId,
 		previousMessageId: ChatMessageId,
 		retryOfMessageId: ChatMessageId | null,
+		turnId: ChatMessageId | null,
 		responseMode: ChatTriggerResponseMode,
 	) {
 		try {
@@ -1429,6 +1486,7 @@ export class ChatHubService {
 				sessionId,
 				previousMessageId,
 				retryOfMessageId,
+				turnId,
 				executionMode,
 				responseMode,
 			);
@@ -1732,6 +1790,7 @@ export class ChatHubService {
 		content,
 		model,
 		retryOfMessageId,
+		turnId,
 		status,
 	}: {
 		id: ChatMessageId;
@@ -1742,6 +1801,8 @@ export class ChatHubService {
 		executionId?: string;
 		retryOfMessageId: ChatMessageId | null;
 		editOfMessageId?: ChatMessageId;
+		/** Correlation ID linking this AI message to memory entries created during this turn */
+		turnId?: ChatMessageId | null;
 		status?: ChatHubMessageStatus;
 	}) {
 		await this.messageRepository.createChatMessage({
@@ -1754,6 +1815,7 @@ export class ChatHubService {
 			status,
 			content,
 			retryOfMessageId,
+			turnId: turnId ?? null,
 			...model,
 		});
 	}
@@ -2066,5 +2128,18 @@ export class ChatHubService {
 		}
 
 		return errorText;
+	}
+
+	private extractPreviousTurnIds(history: ChatHubMessage[]): ChatMessageId[] {
+		const seen = new Set<string>();
+		const previousTurnIds = history.reduce<string[]>((acc, m) => {
+			if (m.type === 'ai' && m.turnId && !seen.has(m.turnId)) {
+				seen.add(m.turnId);
+				acc.push(m.turnId);
+			}
+			return acc;
+		}, []);
+
+		return previousTurnIds;
 	}
 }

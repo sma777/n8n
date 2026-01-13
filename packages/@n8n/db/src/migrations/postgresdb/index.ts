@@ -133,6 +133,7 @@ import { AddAgentIdForeignKeys1765886667897 } from '../common/1765886667897-AddA
 import { AddWorkflowVersionIdToExecutionData1765892199653 } from '../common/1765892199653-AddVersionIdToExecutionData';
 import { AddWorkflowPublishScopeToProjectRoles1766064542000 } from '../common/1766064542000-AddWorkflowPublishScopeToProjectRoles';
 import { AddChatMessageIndices1766068346315 } from '../common/1766068346315-AddChatMessageIndices';
+import { CreateChatHubMemoryTable1768311480000 } from '../common/1768311480000-CreateChatHubMemoryTable';
 import { ExpandModelColumnLength1768402473068 } from '../common/1768402473068-ExpandModelColumnLength';
 import { AddStoredAtToExecutionEntity1768557000000 } from '../common/1768557000000-AddStoredAtToExecutionEntity';
 import type { Migration } from '../migration-types';
@@ -275,4 +276,5 @@ export const postgresMigrations: Migration[] = [
 	ChangeWorkflowStatisticsFKToNoAction1767018516000,
 	ExpandModelColumnLength1768402473068,
 	AddStoredAtToExecutionEntity1768557000000,
+	CreateChatHubMemoryTable1768311480000,
 ];
