@@ -84,6 +84,7 @@ type EntityName =
 	| 'ChatHubSession'
 	| 'ChatHubMessage'
 	| 'ChatHubAgent'
+	| 'ChatHubMemory'
 	| 'OAuthClient'
 	| 'AuthorizationCode'
 	| 'AccessToken'
