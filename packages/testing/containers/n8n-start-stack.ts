@@ -7,6 +7,7 @@ import { BASE_PERFORMANCE_PLANS, isValidPerformancePlan } from './performance-pl
 import type { CloudflaredResult } from './services/cloudflared';
 import type { KeycloakResult } from './services/keycloak';
 import type { MailpitResult } from './services/mailpit';
+import type { NgrokResult } from './services/ngrok';
 import type { TracingResult } from './services/tracing';
 import type { ServiceName } from './services/types';
 import type { VictoriaLogsResult } from './services/victoria-logs';
@@ -50,6 +51,7 @@ ${colors.yellow}Options:${colors.reset}
   --observability   Enable observability stack (VictoriaLogs + VictoriaMetrics + Vector)
   --tracing         Enable tracing stack (n8n-tracer + Jaeger) for workflow visualization
   --tunnel          Enable Cloudflare Tunnel for public URL (via trycloudflare.com)
+  --ngrok           Enable ngrok tunnel for public URL (requires NGROK_AUTHTOKEN env var)
   --mailpit         Enable Mailpit for email testing
   --mains <n>       Number of main instances (default: 1)
   --workers <n>     Number of worker instances (default: 1)
@@ -131,6 +133,7 @@ async function main() {
 			observability: { type: 'boolean' },
 			tracing: { type: 'boolean' },
 			tunnel: { type: 'boolean' },
+			ngrok: { type: 'boolean' },
 			mailpit: { type: 'boolean' },
 			mains: { type: 'string' },
 			workers: { type: 'string' },
@@ -154,6 +157,7 @@ async function main() {
 	if (values.observability) services.push('victoriaLogs', 'victoriaMetrics', 'vector');
 	if (values.tracing) services.push('tracing');
 	if (values.tunnel) services.push('cloudflared');
+	if (values.ngrok) services.push('ngrok');
 	if (values.mailpit) services.push('mailpit');
 
 	// Build configuration
@@ -290,6 +294,14 @@ async function main() {
 			log.info('Webhooks are accessible from the internet via this URL');
 		}
 
+		const ngrokResult = stack.serviceResults.ngrok as NgrokResult | undefined;
+		if (ngrokResult) {
+			console.log('');
+			log.header('ngrok Tunnel');
+			log.info(`Public URL: ${colors.cyan}${ngrokResult.meta.publicUrl}${colors.reset}`);
+			log.info('Webhooks are accessible from the internet via this URL');
+		}
+
 		const mailpitResult = stack.serviceResults.mailpit as MailpitResult | undefined;
 		if (mailpitResult) {
 			console.log('');
@@ -357,6 +369,8 @@ function displayConfig(config: N8NConfig) {
 	// Display tunnel status
 	if (services.includes('cloudflared')) {
 		log.info('Tunnel: enabled (Cloudflare Quick Tunnel)');
+	} else if (services.includes('ngrok')) {
+		log.info('Tunnel: enabled (ngrok)');
 	} else {
 		log.info('Tunnel: disabled');
 	}

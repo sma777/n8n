@@ -3,6 +3,7 @@ import { gitea, createGiteaHelper } from './gitea';
 import { keycloak, createKeycloakHelper } from './keycloak';
 import { loadBalancer } from './load-balancer';
 import { mailpit, createMailpitHelper } from './mailpit';
+import { ngrok } from './ngrok';
 import { createObservabilityHelper } from './observability';
 import { postgres } from './postgres';
 import { proxy } from './proxy';
@@ -29,6 +30,7 @@ export const services: Record<ServiceName, Service<ServiceResult>> = {
 	taskRunner,
 	loadBalancer,
 	cloudflared,
+	ngrok,
 };
 
 export const helperFactories: Partial<HelperFactories> = {
