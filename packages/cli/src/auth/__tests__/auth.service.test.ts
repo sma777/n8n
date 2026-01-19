@@ -818,9 +818,9 @@ describe('AuthService', () => {
 
 	describe('getCookieToken', () => {
 		it('should return token from cookies', () => {
-			const req = {
+			const req = mock<AuthenticatedRequest>({
 				cookies: { [AUTH_COOKIE_NAME]: 'test-token-123' },
-			} as AuthenticatedRequest;
+			});
 
 			const token = authService.getCookieToken(req);
 
@@ -828,9 +828,9 @@ describe('AuthService', () => {
 		});
 
 		it('should return undefined when cookie not present', () => {
-			const req = {
+			const req = mock<AuthenticatedRequest>({
 				cookies: {},
-			} as AuthenticatedRequest;
+			});
 
 			const token = authService.getCookieToken(req);
 
@@ -840,12 +840,12 @@ describe('AuthService', () => {
 
 	describe('getBrowserIdIfApplicable', () => {
 		it('should return browserId for POST requests', () => {
-			const req = {
+			const req = mock<AuthenticatedRequest>({
 				method: 'POST',
 				baseUrl: '/api',
 				route: { path: '/chat/message' },
 				browserId: 'browser-123',
-			} as AuthenticatedRequest;
+			});
 
 			const browserId = authService.getBrowserIdIfApplicable(req);
 
@@ -853,12 +853,12 @@ describe('AuthService', () => {
 		});
 
 		it('should return undefined for GET on skip endpoints', () => {
-			const req = {
+			const req = mock<AuthenticatedRequest>({
 				method: 'GET',
 				baseUrl: '/api',
 				route: { path: '/chat/sessions' },
 				browserId: 'browser-123',
-			} as AuthenticatedRequest;
+			});
 
 			// Mock skipBrowserIdCheckEndpoints to include this endpoint
 			(authService as any).skipBrowserIdCheckEndpoints = ['/api/chat/sessions'];
@@ -869,12 +869,12 @@ describe('AuthService', () => {
 		});
 
 		it('should return browserId for POST on skip endpoints', () => {
-			const req = {
+			const req = mock<AuthenticatedRequest>({
 				method: 'POST',
 				baseUrl: '/api',
 				route: { path: '/chat/sessions' },
 				browserId: 'browser-123',
-			} as AuthenticatedRequest;
+			});
 
 			// Mock skipBrowserIdCheckEndpoints to include this endpoint
 			(authService as any).skipBrowserIdCheckEndpoints = ['/api/chat/sessions'];
@@ -885,11 +885,11 @@ describe('AuthService', () => {
 		});
 
 		it('should return browserId when no route is present', () => {
-			const req = {
+			const req = mock<AuthenticatedRequest>({
 				method: 'POST',
 				baseUrl: '/api',
 				browserId: 'browser-123',
-			} as AuthenticatedRequest;
+			});
 
 			const browserId = authService.getBrowserIdIfApplicable(req);
 
