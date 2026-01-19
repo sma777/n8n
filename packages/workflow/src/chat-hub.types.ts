@@ -15,6 +15,15 @@ export interface StoredHumanMessage {
 	content: string;
 }
 
+export function isHumanMessage(content: unknown): content is StoredHumanMessage {
+	return (
+		typeof content === 'object' &&
+		content !== null &&
+		'content' in content &&
+		typeof content.content === 'string'
+	);
+}
+
 /**
  * Structure for storing AI messages as JSON.
  * Includes tool_calls array so ToolMessages can be properly matched when reconstructing history.
@@ -22,6 +31,17 @@ export interface StoredHumanMessage {
 export interface StoredAIMessage {
 	content: string;
 	toolCalls: IToolCall[];
+}
+
+export function isAIMessage(content: unknown): content is StoredAIMessage {
+	return (
+		typeof content === 'object' &&
+		content !== null &&
+		'content' in content &&
+		typeof content.content === 'string' &&
+		'toolCalls' in content &&
+		Array.isArray(content.toolCalls)
+	);
 }
 
 /**
@@ -34,8 +54,28 @@ export interface StoredToolMessage {
 	toolOutput: unknown;
 }
 
+export function isToolMessage(content: unknown): content is StoredToolMessage {
+	return (
+		typeof content === 'object' &&
+		content !== null &&
+		'toolCallId' in content &&
+		'toolName' in content &&
+		'toolInput' in content &&
+		'toolOutput' in content
+	);
+}
+
 export interface StoredSystemMessage {
 	content: string;
+}
+
+export function isSystemMessage(content: unknown): content is StoredSystemMessage {
+	return (
+		typeof content === 'object' &&
+		content !== null &&
+		'content' in content &&
+		typeof content.content === 'string'
+	);
 }
 
 export type StoredMessage =

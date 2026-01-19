@@ -1,23 +1,24 @@
 import { BaseChatMessageHistory } from '@langchain/core/chat_history';
 import type { BaseMessage } from '@langchain/core/messages';
 import { HumanMessage, AIMessage, SystemMessage, ToolMessage } from '@langchain/core/messages';
-import type {
-	IChatHubMemoryService,
-	ChatHubMemoryEntry,
-	StoredHumanMessage,
-	StoredAIMessage,
-	StoredSystemMessage,
-	StoredToolMessage,
+import {
+	isHumanMessage,
+	isAIMessage,
+	isToolMessage,
+	isSystemMessage,
+	type IChatHubMemoryService,
+	type ChatHubMemoryEntry,
 } from 'n8n-workflow';
 
 /**
- * LangChain message history implementation that uses n8n's Chat Hub memory.
+ * LangChain message history implementation that uses n8n's database for memory.
  * Memory is stored separately from chat UI messages, allowing:
+ * - Memory to be different from what is shown in the chat interface
  * - Multiple memory nodes in the same workflow to have isolated memory
  * - Proper branching on edit/retry via parentMessageId linking
  */
 export class ChatHubMessageHistory extends BaseChatMessageHistory {
-	lc_namespace = ['langchain', 'stores', 'message', 'n8n_chat_hub'];
+	lc_namespace = ['n8n-nodes-langchain', 'stores', 'message', 'chat_hub'];
 
 	private memoryService: IChatHubMemoryService;
 
@@ -56,48 +57,8 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 		}
 	}
 
-	private isHumanMessage(content: unknown): content is StoredHumanMessage {
-		return (
-			typeof content === 'object' &&
-			content !== null &&
-			'content' in content &&
-			typeof content.content === 'string'
-		);
-	}
-
-	private isAIMessage(content: unknown): content is StoredAIMessage {
-		return (
-			typeof content === 'object' &&
-			content !== null &&
-			'content' in content &&
-			typeof content.content === 'string' &&
-			'toolCalls' in content &&
-			Array.isArray(content.toolCalls)
-		);
-	}
-
-	private isToolMessage(content: unknown): content is StoredToolMessage {
-		return (
-			typeof content === 'object' &&
-			content !== null &&
-			'toolCallId' in content &&
-			'toolName' in content &&
-			'toolInput' in content &&
-			'toolOutput' in content
-		);
-	}
-
-	private isSystemMessage(content: unknown): content is StoredSystemMessage {
-		return (
-			typeof content === 'object' &&
-			content !== null &&
-			'content' in content &&
-			typeof content.content === 'string'
-		);
-	}
-
 	private asHumanMessage(entry: ChatHubMemoryEntry): HumanMessage {
-		if (this.isHumanMessage(entry.content)) {
+		if (isHumanMessage(entry.content)) {
 			const humanData = entry.content;
 			return new HumanMessage({ content: humanData.content, name: undefined });
 		} else {
@@ -109,7 +70,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 	}
 
 	private asAIMessage(entry: ChatHubMemoryEntry): AIMessage {
-		if (this.isAIMessage(entry.content)) {
+		if (isAIMessage(entry.content)) {
 			const aiData = entry.content;
 			return new AIMessage({
 				content: aiData.content,
@@ -125,7 +86,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 	}
 
 	private asToolMessage(entry: ChatHubMemoryEntry): ToolMessage {
-		if (this.isToolMessage(entry.content)) {
+		if (isToolMessage(entry.content)) {
 			const toolData = entry.content;
 			return new ToolMessage({
 				content: JSON.stringify(toolData.toolOutput),
@@ -142,7 +103,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 	}
 
 	private asSystemMessage(entry: ChatHubMemoryEntry): SystemMessage {
-		if (this.isSystemMessage(entry.content)) {
+		if (isSystemMessage(entry.content)) {
 			const systemData = entry.content;
 			return new SystemMessage({ content: systemData.content });
 		} else {
