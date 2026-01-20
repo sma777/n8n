@@ -5,7 +5,8 @@ import { Service } from '@n8n/di';
 import { InstanceSettings } from 'n8n-core';
 import { ensureError } from 'n8n-workflow';
 
-import { ChatHubMemoryRepository } from './chat-hub-memory.repository';
+import { ChatMemoryRepository } from './chat-memory.repository';
+import { ChatMemorySessionRepository } from './chat-memory-session.repository';
 import { ChatHubSessionRepository } from './chat-session.repository';
 
 const CLEANUP_INTERVAL_MS = 15 * Time.minutes.toMilliseconds;
@@ -26,8 +27,9 @@ export class ChatHubMemoryCleanupService {
 	constructor(
 		private readonly logger: Logger,
 		private readonly instanceSettings: InstanceSettings,
-		private readonly memoryRepository: ChatHubMemoryRepository,
-		private readonly sessionRepository: ChatHubSessionRepository,
+		private readonly memoryRepository: ChatMemoryRepository,
+		private readonly memorySessionRepository: ChatMemorySessionRepository,
+		private readonly chatHubSessionRepository: ChatHubSessionRepository,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -74,10 +76,19 @@ export class ChatHubMemoryCleanupService {
 				this.logger.debug('Deleted expired memory entries', { count: deletedMemoryCount });
 			}
 
-			// Delete orphaned chat hub sessions (with no messages and no memory entries)
-			const deletedSessionCount = await this.sessionRepository.deleteOrphanedSessions();
-			if (deletedSessionCount > 0) {
-				this.logger.debug('Deleted orphaned chat hub sessions', { count: deletedSessionCount });
+			// Delete orphaned memory sessions (sessions with no memory entries)
+			const deletedMemorySessionCount = await this.memorySessionRepository.deleteOrphanedSessions();
+			if (deletedMemorySessionCount > 0) {
+				this.logger.debug('Deleted orphaned memory sessions', { count: deletedMemorySessionCount });
+			}
+
+			// Delete orphaned chat hub sessions (with no messages)
+			const deletedChatHubSessionCount =
+				await this.chatHubSessionRepository.deleteOrphanedSessions();
+			if (deletedChatHubSessionCount > 0) {
+				this.logger.debug('Deleted orphaned chat hub sessions', {
+					count: deletedChatHubSessionCount,
+				});
 			}
 		} catch (error) {
 			this.logger.error('Failed to run chat hub memory cleanup', { error: ensureError(error) });

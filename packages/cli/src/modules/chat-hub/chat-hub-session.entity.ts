@@ -26,7 +26,7 @@ export interface IChatHubSession {
 	createdAt: Date;
 	updatedAt: Date;
 	title: string;
-	ownerId: string | null;
+	ownerId: string;
 	lastMessageAt: Date;
 	credentialId: string | null;
 	provider: ChatHubProvider | null;
@@ -51,10 +51,10 @@ export class ChatHubSession extends WithTimestamps {
 
 	/**
 	 * ID of the user that owns this chat session.
-	 * Can be null for anonymous sessions (manual executions, public triggers).
+	 * Required - anonymous sessions use chat_memory_sessions without a chat_hub_sessions record.
 	 */
-	@Column({ type: String, nullable: true })
-	ownerId: string | null;
+	@Column({ type: String })
+	ownerId: string;
 
 	/**
 	 * The user that owns this chat session.

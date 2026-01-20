@@ -1,7 +1,6 @@
 import { Service } from '@n8n/di';
 import { DataSource, EntityManager, Repository } from '@n8n/typeorm';
 
-import { ChatHubMemory } from './chat-hub-memory.entity';
 import { ChatHubMessage } from './chat-hub-message.entity';
 import { ChatHubSession, IChatHubSession } from './chat-hub-session.entity';
 
@@ -114,7 +113,7 @@ export class ChatHubSessionRepository extends Repository<ChatHubSession> {
 	}
 
 	/**
-	 * Delete orphaned chat hub sessions (sessions that have no memory entries and no messages).
+	 * Delete orphaned chat hub sessions (sessions that have no messages).
 	 * @returns The number of deleted sessions
 	 */
 	async deleteOrphanedSessions(trx?: EntityManager): Promise<number> {
@@ -127,20 +126,12 @@ export class ChatHubSessionRepository extends Repository<ChatHubSession> {
 			.from(ChatHubMessage, 'msg')
 			.getQuery();
 
-		// Subquery for sessions that have memory entries
-		const sessionsWithMemory = em
-			.createQueryBuilder()
-			.select('mem.sessionId')
-			.from(ChatHubMemory, 'mem')
-			.getQuery();
-
-		// Delete sessions that have neither messages nor memory
+		// Delete sessions that have no messages
 		const result = await em
 			.createQueryBuilder()
 			.delete()
 			.from(ChatHubSession)
 			.where(`id NOT IN (${sessionsWithMessages})`)
-			.andWhere(`id NOT IN (${sessionsWithMemory})`)
 			.execute();
 
 		return result.affected ?? 0;

@@ -9,9 +9,9 @@ import {
 	type INode,
 } from 'n8n-workflow';
 
-import { ChatHubMemoryRepository } from '../chat-hub-memory.repository';
+import { ChatMemoryRepository } from '../chat-memory.repository';
+import { ChatMemorySessionRepository } from '../chat-memory-session.repository';
 import { ChatHubProxyService, isAllowedNode } from '../chat-hub-proxy.service';
-import { ChatHubSessionRepository } from '../chat-session.repository';
 
 beforeAll(async () => {
 	await testModules.loadModules(['chat-hub']);
@@ -19,7 +19,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	await testDb.truncate(['ChatHubMemory', 'ChatHubSession', 'User']);
+	await testDb.truncate(['ChatMemory', 'ChatMemorySession', 'User']);
 });
 
 afterAll(async () => {
@@ -28,14 +28,14 @@ afterAll(async () => {
 
 describe('ChatHubProxyService', () => {
 	let proxyService: ChatHubProxyService;
-	let memoryRepository: ChatHubMemoryRepository;
-	let sessionRepository: ChatHubSessionRepository;
+	let memoryRepository: ChatMemoryRepository;
+	let memorySessionRepository: ChatMemorySessionRepository;
 	let user: User;
 
 	beforeAll(() => {
 		proxyService = Container.get(ChatHubProxyService);
-		memoryRepository = Container.get(ChatHubMemoryRepository);
-		sessionRepository = Container.get(ChatHubSessionRepository);
+		memoryRepository = Container.get(ChatMemoryRepository);
+		memorySessionRepository = Container.get(ChatMemorySessionRepository);
 	});
 
 	beforeEach(async () => {
@@ -120,67 +120,50 @@ describe('ChatHubProxyService', () => {
 			).rejects.toThrow('This proxy is only available for Chat Hub Memory nodes');
 		});
 
-		it('should create session when it does not exist', async () => {
+		it('should create memory session when it does not exist', async () => {
 			const workflow = createTestWorkflow({ name: 'My Agent' });
 			const node = createMemoryNode();
-			const sessionId = crypto.randomUUID();
+			const sessionKey = `session-${crypto.randomUUID()}`;
 
-			await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
+			await proxyService.getChatHubProxy(workflow, node, sessionKey, null, null);
 
-			const session = await sessionRepository.findOne({ where: { id: sessionId } });
-			expect(session).not.toBeNull();
-			expect(session?.title).toBe('My Agent');
-			expect(session?.agentName).toBe('My Agent');
-			expect(session?.ownerId).toBeNull();
+			const memorySession = await memorySessionRepository.getBySessionKey(sessionKey);
+			expect(memorySession).not.toBeNull();
+			expect(memorySession?.sessionKey).toBe(sessionKey);
+			expect(memorySession?.chatHubSessionId).toBeNull();
 		});
 
-		it('should use agentName from chat trigger if available', async () => {
-			const workflow = createTestWorkflow({
-				name: 'Workflow Name',
-				agentName: 'Custom Agent Name',
-			});
-			const node = createMemoryNode();
-			const sessionId = crypto.randomUUID();
-
-			await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
-
-			const session = await sessionRepository.findOne({ where: { id: sessionId } });
-			expect(session?.agentName).toBe('Custom Agent Name');
-		});
-
-		it('should fall back to workflow name when agentName is not set', async () => {
-			const workflow = createTestWorkflow({ name: 'My Workflow' });
-			const node = createMemoryNode();
-			const sessionId = crypto.randomUUID();
-
-			await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
-
-			const session = await sessionRepository.findOne({ where: { id: sessionId } });
-			expect(session?.agentName).toBe('My Workflow');
-		});
-
-		it('should create session with ownerId when provided', async () => {
+		it('should support arbitrary string session keys', async () => {
 			const workflow = createTestWorkflow();
 			const node = createMemoryNode();
-			const sessionId = crypto.randomUUID();
+			const customSessionKey = 'user:123:conversation:456';
 
-			await proxyService.getChatHubProxy(workflow, node, sessionId, null, null, user.id);
+			const proxy = await proxyService.getChatHubProxy(
+				workflow,
+				node,
+				customSessionKey,
+				null,
+				null,
+			);
 
-			const session = await sessionRepository.findOne({ where: { id: sessionId } });
-			expect(session?.ownerId).toBe(user.id);
+			await proxy.addHumanMessage('Hello with custom key!');
+
+			const entries = await memoryRepository.find({ where: { sessionKey: customSessionKey } });
+			expect(entries).toHaveLength(1);
+			expect(entries[0].sessionKey).toBe(customSessionKey);
 		});
 
 		describe('memory operations', () => {
 			it('should add human message with expiresAt for anonymous session', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey, null, null);
 
 				await proxy.addHumanMessage('Hello, world!');
 
-				const entries = await memoryRepository.find({ where: { sessionId } });
+				const entries = await memoryRepository.find({ where: { sessionKey } });
 				expect(entries).toHaveLength(1);
 				expect(entries[0].role).toBe('human');
 				expect(entries[0].content).toEqual({ content: 'Hello, world!' });
@@ -194,12 +177,12 @@ describe('ChatHubProxyService', () => {
 			it('should add human message without expiresAt for authenticated session', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
 				const proxy = await proxyService.getChatHubProxy(
 					workflow,
 					node,
-					sessionId,
+					sessionKey,
 					null,
 					null,
 					user.id,
@@ -207,7 +190,7 @@ describe('ChatHubProxyService', () => {
 
 				await proxy.addHumanMessage('Hello, authenticated!');
 
-				const entries = await memoryRepository.find({ where: { sessionId } });
+				const entries = await memoryRepository.find({ where: { sessionKey } });
 				expect(entries).toHaveLength(1);
 				expect(entries[0].expiresAt).toBeNull();
 			});
@@ -215,14 +198,14 @@ describe('ChatHubProxyService', () => {
 			it('should add AI message with tool calls', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey, null, null);
 
 				const toolCalls = [{ id: 'call-1', name: 'search', args: { query: 'test' } }];
 				await proxy.addAIMessage('Here is the result', toolCalls);
 
-				const entries = await memoryRepository.find({ where: { sessionId } });
+				const entries = await memoryRepository.find({ where: { sessionKey } });
 				expect(entries).toHaveLength(1);
 				expect(entries[0].role).toBe('ai');
 				expect(entries[0].content).toEqual({ content: 'Here is the result', toolCalls });
@@ -231,13 +214,13 @@ describe('ChatHubProxyService', () => {
 			it('should add tool message', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey, null, null);
 
 				await proxy.addToolMessage('call-1', 'search', { query: 'test' }, { results: ['a', 'b'] });
 
-				const entries = await memoryRepository.find({ where: { sessionId } });
+				const entries = await memoryRepository.find({ where: { sessionKey } });
 				expect(entries).toHaveLength(1);
 				expect(entries[0].role).toBe('tool');
 				expect(entries[0].name).toBe('search');
@@ -252,23 +235,21 @@ describe('ChatHubProxyService', () => {
 			it('should get memory entries for all turns when previousTurnIds is null', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 				const turnId1 = crypto.randomUUID();
 				const turnId2 = crypto.randomUUID();
 
-				// Create session first (required for FK constraint)
-				await sessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: null,
-					title: 'Test Session',
-					lastMessageAt: new Date(),
-					tools: [],
+				// Create memory session first (required for FK constraint)
+				await memorySessionRepository.createSession({
+					sessionKey,
+					chatHubSessionId: null,
+					workflowId: null,
 				});
 
 				// Create some memory entries
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId,
+					sessionKey,
 					turnId: turnId1,
 					role: 'human',
 					content: { content: 'First message' },
@@ -276,7 +257,7 @@ describe('ChatHubProxyService', () => {
 				});
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId,
+					sessionKey,
 					turnId: turnId2,
 					role: 'ai',
 					content: { content: 'Response' },
@@ -286,7 +267,7 @@ describe('ChatHubProxyService', () => {
 				const proxy = await proxyService.getChatHubProxy(
 					workflow,
 					node,
-					sessionId,
+					sessionKey,
 					null,
 					null, // No previousTurnIds - should get all
 				);
@@ -298,25 +279,23 @@ describe('ChatHubProxyService', () => {
 			it('should get memory entries only for specified turnIds', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 				const turnId1 = crypto.randomUUID();
 				const turnId2 = crypto.randomUUID();
 				const turnId3 = crypto.randomUUID();
 				const turnIdCurrent = crypto.randomUUID();
 
-				// Create session first (required for FK constraint)
-				await sessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: null,
-					title: 'Test Session',
-					lastMessageAt: new Date(),
-					tools: [],
+				// Create memory session first (required for FK constraint)
+				await memorySessionRepository.createSession({
+					sessionKey,
+					chatHubSessionId: null,
+					workflowId: null,
 				});
 
 				// Create memory entries with different turnIds
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId,
+					sessionKey,
 					turnId: turnId1,
 					role: 'human',
 					content: { content: 'Turn 1 message' },
@@ -324,7 +303,7 @@ describe('ChatHubProxyService', () => {
 				});
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId,
+					sessionKey,
 					turnId: turnId2,
 					role: 'human',
 					content: { content: 'Turn 2 message' },
@@ -332,7 +311,7 @@ describe('ChatHubProxyService', () => {
 				});
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId,
+					sessionKey,
 					turnId: turnId3,
 					role: 'human',
 					content: { content: 'Turn 3 message' },
@@ -342,7 +321,7 @@ describe('ChatHubProxyService', () => {
 				const proxy = await proxyService.getChatHubProxy(
 					workflow,
 					node,
-					sessionId,
+					sessionKey,
 					turnIdCurrent,
 					[turnId1, turnId3], // Only get turn-1 and turn-3
 				);
@@ -358,30 +337,26 @@ describe('ChatHubProxyService', () => {
 			it('should clear memory for the specific session', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId1 = crypto.randomUUID();
-				const sessionId2 = crypto.randomUUID();
+				const sessionKey1 = `session-${crypto.randomUUID()}`;
+				const sessionKey2 = `session-${crypto.randomUUID()}`;
 
-				// Create two sessions
-				await sessionRepository.createChatSession({
-					id: sessionId1,
-					ownerId: null,
-					title: 'Test Session',
-					lastMessageAt: new Date(),
-					tools: [],
+				// Create two memory sessions
+				await memorySessionRepository.createSession({
+					sessionKey: sessionKey1,
+					chatHubSessionId: null,
+					workflowId: null,
 				});
 
-				await sessionRepository.createChatSession({
-					id: sessionId2,
-					ownerId: null,
-					title: 'Another Session',
-					lastMessageAt: new Date(),
-					tools: [],
+				await memorySessionRepository.createSession({
+					sessionKey: sessionKey2,
+					chatHubSessionId: null,
+					workflowId: null,
 				});
 
 				// Create entries for two different sessions
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId: sessionId1,
+					sessionKey: sessionKey1,
 					turnId: null,
 					role: 'human',
 					content: { content: 'Node 1 message' },
@@ -389,18 +364,18 @@ describe('ChatHubProxyService', () => {
 				});
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
-					sessionId: sessionId2,
+					sessionKey: sessionKey2,
 					turnId: null,
 					role: 'human',
 					content: { content: 'Node 2 message' },
 					name: 'User',
 				});
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId1, null, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey1, null, null);
 
 				await proxy.clearMemory();
 
-				const remaining = await memoryRepository.find({ where: { sessionId: sessionId2 } });
+				const remaining = await memoryRepository.find({ where: { sessionKey: sessionKey2 } });
 				expect(remaining).toHaveLength(1);
 				expect(remaining[0].content).toEqual({ content: 'Node 2 message' });
 			});
@@ -408,16 +383,16 @@ describe('ChatHubProxyService', () => {
 			it('should link memory entries with turnId', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 				const turnId = crypto.randomUUID();
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, turnId, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey, turnId, null);
 
 				await proxy.addHumanMessage('Question');
 				await proxy.addAIMessage('Answer', []);
 
 				const entries = await memoryRepository.find({
-					where: { sessionId },
+					where: { sessionKey },
 					order: { createdAt: 'ASC' },
 				});
 				expect(entries).toHaveLength(2);
@@ -428,14 +403,14 @@ describe('ChatHubProxyService', () => {
 			it('should generate turnId when not provided', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey, null, null);
 
 				await proxy.addHumanMessage('Message 1');
 				await proxy.addAIMessage('Response', []);
 
-				const entries = await memoryRepository.find({ where: { sessionId } });
+				const entries = await memoryRepository.find({ where: { sessionKey } });
 				expect(entries).toHaveLength(2);
 				// Both should have the same generated turnId
 				expect(entries[0].turnId).toBe(entries[1].turnId);
@@ -447,12 +422,12 @@ describe('ChatHubProxyService', () => {
 			it('should return ownerId when set', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
 				const proxy = await proxyService.getChatHubProxy(
 					workflow,
 					node,
-					sessionId,
+					sessionKey,
 					null,
 					null,
 					user.id,
@@ -464,81 +439,11 @@ describe('ChatHubProxyService', () => {
 			it('should return undefined when ownerId not set', async () => {
 				const workflow = createTestWorkflow();
 				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
+				const sessionKey = `session-${crypto.randomUUID()}`;
 
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
+				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionKey, null, null);
 
 				expect(proxy.getOwnerId()).toBeUndefined();
-			});
-		});
-
-		describe('session access control', () => {
-			it('should not allow accessing another users session', async () => {
-				const user2 = await createMember();
-				const workflow = createTestWorkflow();
-				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
-
-				// Create session owned by user (first user)
-				await sessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: user.id,
-					title: 'User 1 Session',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-
-				// Try to access as user2
-				await expect(
-					proxyService.getChatHubProxy(workflow, node, sessionId, null, null, user2.id),
-				).rejects.toThrow('You are not allowed to access this session');
-			});
-
-			it('should allow owner to access their session', async () => {
-				const workflow = createTestWorkflow();
-				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
-
-				// Create session owned by user
-				await sessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: user.id,
-					title: 'User Session',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-
-				// Access as owner should work
-				const proxy = await proxyService.getChatHubProxy(
-					workflow,
-					node,
-					sessionId,
-					null,
-					null,
-					user.id,
-				);
-
-				expect(proxy).toBeDefined();
-			});
-
-			it('should allow anonymous access to anonymous session', async () => {
-				const workflow = createTestWorkflow();
-				const node = createMemoryNode();
-				const sessionId = crypto.randomUUID();
-
-				// Create anonymous session
-				await sessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: null,
-					title: 'Anonymous Session',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-
-				// Anonymous access should work
-				const proxy = await proxyService.getChatHubProxy(workflow, node, sessionId, null, null);
-
-				expect(proxy).toBeDefined();
 			});
 		});
 	});

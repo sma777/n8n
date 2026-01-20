@@ -3,22 +3,22 @@ import { DataSource, EntityManager, In, LessThan, Repository } from '@n8n/typeor
 import type { QueryDeepPartialEntity } from '@n8n/typeorm/query-builder/QueryPartialEntity';
 import { StoredMessage, UnexpectedError } from 'n8n-workflow';
 
-import { ChatHubMemory, type ChatHubMemoryRole } from './chat-hub-memory.entity';
+import { ChatMemory, type ChatMemoryRole } from './chat-memory.entity';
 
 export interface CreateMemoryEntryData {
 	id: string;
-	sessionId: string;
+	sessionKey: string;
 	turnId: string | null;
-	role: ChatHubMemoryRole;
+	role: ChatMemoryRole;
 	content: StoredMessage;
 	name: string;
 	expiresAt?: Date | null;
 }
 
 @Service()
-export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
+export class ChatMemoryRepository extends Repository<ChatMemory> {
 	constructor(dataSource: DataSource) {
-		super(ChatHubMemory, dataSource.manager);
+		super(ChatMemory, dataSource.manager);
 	}
 
 	async createMemoryEntry(entry: CreateMemoryEntryData, trx?: EntityManager) {
@@ -28,11 +28,11 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 			throw new UnexpectedError('Memory entry ID is required');
 		}
 
-		if (!entry.sessionId) {
-			throw new UnexpectedError('Session ID is required');
+		if (!entry.sessionKey) {
+			throw new UnexpectedError('Session key is required');
 		}
 
-		await em.insert(ChatHubMemory, entry as QueryDeepPartialEntity<ChatHubMemory>);
+		await em.insert(ChatMemory, entry as QueryDeepPartialEntity<ChatMemory>);
 		return entry.id;
 	}
 
@@ -42,19 +42,19 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 	 * Turn IDs are correlation IDs linking memory entries to AI messages.
 	 */
 	async getMemoryByTurnIds(
-		sessionId: string,
+		sessionKey: string,
 		turnIds: string[],
 		trx?: EntityManager,
-	): Promise<ChatHubMemory[]> {
+	): Promise<ChatMemory[]> {
 		const em = trx ?? this.manager;
 
 		if (turnIds.length === 0) {
 			return [];
 		}
 
-		return await em.find(ChatHubMemory, {
+		return await em.find(ChatMemory, {
 			where: {
-				sessionId,
+				sessionKey,
 				turnId: In(turnIds),
 			},
 			order: { createdAt: 'ASC' },
@@ -65,12 +65,12 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 	 * Get all memory entries for a session and memory node.
 	 * Used when turnId is not available (e.g., manual executions).
 	 */
-	async getAllMemoryForNode(sessionId: string, trx?: EntityManager): Promise<ChatHubMemory[]> {
+	async getAllMemoryForNode(sessionKey: string, trx?: EntityManager): Promise<ChatMemory[]> {
 		const em = trx ?? this.manager;
 
-		return await em.find(ChatHubMemory, {
+		return await em.find(ChatMemory, {
 			where: {
-				sessionId,
+				sessionKey,
 			},
 			order: { createdAt: 'ASC' },
 		});
@@ -79,9 +79,9 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 	/**
 	 * Delete all memory entries for a session.
 	 */
-	async deleteBySessionId(sessionId: string, trx?: EntityManager): Promise<void> {
+	async deleteBySessionKey(sessionKey: string, trx?: EntityManager): Promise<void> {
 		const em = trx ?? this.manager;
-		await em.delete(ChatHubMemory, { sessionId });
+		await em.delete(ChatMemory, { sessionKey });
 	}
 
 	/**
@@ -90,7 +90,7 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 	 */
 	async deleteExpiredEntries(trx?: EntityManager): Promise<number> {
 		const em = trx ?? this.manager;
-		const result = await em.delete(ChatHubMemory, {
+		const result = await em.delete(ChatMemory, {
 			expiresAt: LessThan(new Date()),
 		});
 		return result.affected ?? 0;

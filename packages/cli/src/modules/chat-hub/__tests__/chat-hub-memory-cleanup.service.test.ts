@@ -3,20 +3,23 @@ import { mock } from 'jest-mock-extended';
 import type { InstanceSettings } from 'n8n-core';
 
 import { ChatHubMemoryCleanupService } from '../chat-hub-memory-cleanup.service';
-import type { ChatHubMemoryRepository } from '../chat-hub-memory.repository';
+import type { ChatMemoryRepository } from '../chat-memory.repository';
+import type { ChatMemorySessionRepository } from '../chat-memory-session.repository';
 import type { ChatHubSessionRepository } from '../chat-session.repository';
 
 describe('ChatHubMemoryCleanupService', () => {
 	const createService = (
 		instanceSettings: Partial<InstanceSettings>,
-		memoryRepository?: ChatHubMemoryRepository,
-		sessionRepository?: ChatHubSessionRepository,
+		memoryRepository?: ChatMemoryRepository,
+		memorySessionRepository?: ChatMemorySessionRepository,
+		chatHubSessionRepository?: ChatHubSessionRepository,
 	) => {
 		return new ChatHubMemoryCleanupService(
 			mockLogger(),
 			mock<InstanceSettings>(instanceSettings),
-			memoryRepository ?? mock<ChatHubMemoryRepository>(),
-			sessionRepository ?? mock<ChatHubSessionRepository>(),
+			memoryRepository ?? mock<ChatMemoryRepository>(),
+			memorySessionRepository ?? mock<ChatMemorySessionRepository>(),
+			chatHubSessionRepository ?? mock<ChatHubSessionRepository>(),
 		);
 	};
 
@@ -129,34 +132,40 @@ describe('ChatHubMemoryCleanupService', () => {
 
 	describe('runCleanup', () => {
 		it('should delete expired memory entries and orphaned sessions', async () => {
-			const memoryRepository = mock<ChatHubMemoryRepository>();
-			const sessionRepository = mock<ChatHubSessionRepository>();
+			const memoryRepository = mock<ChatMemoryRepository>();
+			const memorySessionRepository = mock<ChatMemorySessionRepository>();
+			const chatHubSessionRepository = mock<ChatHubSessionRepository>();
 
 			memoryRepository.deleteExpiredEntries.mockResolvedValue(5);
-			sessionRepository.deleteOrphanedSessions.mockResolvedValue(2);
+			memorySessionRepository.deleteOrphanedSessions.mockResolvedValue(2);
+			chatHubSessionRepository.deleteOrphanedSessions.mockResolvedValue(1);
 
 			const service = createService(
 				{ instanceType: 'main', isLeader: true },
 				memoryRepository,
-				sessionRepository,
+				memorySessionRepository,
+				chatHubSessionRepository,
 			);
 
 			await service.runCleanup();
 
 			expect(memoryRepository.deleteExpiredEntries).toHaveBeenCalledTimes(1);
-			expect(sessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
+			expect(memorySessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
+			expect(chatHubSessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
 		});
 
 		it('should handle errors gracefully', async () => {
-			const memoryRepository = mock<ChatHubMemoryRepository>();
-			const sessionRepository = mock<ChatHubSessionRepository>();
+			const memoryRepository = mock<ChatMemoryRepository>();
+			const memorySessionRepository = mock<ChatMemorySessionRepository>();
+			const chatHubSessionRepository = mock<ChatHubSessionRepository>();
 
 			memoryRepository.deleteExpiredEntries.mockRejectedValue(new Error('Database error'));
 
 			const service = createService(
 				{ instanceType: 'main', isLeader: true },
 				memoryRepository,
-				sessionRepository,
+				memorySessionRepository,
+				chatHubSessionRepository,
 			);
 
 			// Should not throw
@@ -164,26 +173,31 @@ describe('ChatHubMemoryCleanupService', () => {
 
 			expect(memoryRepository.deleteExpiredEntries).toHaveBeenCalledTimes(1);
 			// Session cleanup should not be called since memory cleanup failed
-			expect(sessionRepository.deleteOrphanedSessions).not.toHaveBeenCalled();
+			expect(memorySessionRepository.deleteOrphanedSessions).not.toHaveBeenCalled();
+			expect(chatHubSessionRepository.deleteOrphanedSessions).not.toHaveBeenCalled();
 		});
 
 		it('should continue to delete orphaned sessions even when no memory entries are deleted', async () => {
-			const memoryRepository = mock<ChatHubMemoryRepository>();
-			const sessionRepository = mock<ChatHubSessionRepository>();
+			const memoryRepository = mock<ChatMemoryRepository>();
+			const memorySessionRepository = mock<ChatMemorySessionRepository>();
+			const chatHubSessionRepository = mock<ChatHubSessionRepository>();
 
 			memoryRepository.deleteExpiredEntries.mockResolvedValue(0);
-			sessionRepository.deleteOrphanedSessions.mockResolvedValue(3);
+			memorySessionRepository.deleteOrphanedSessions.mockResolvedValue(3);
+			chatHubSessionRepository.deleteOrphanedSessions.mockResolvedValue(0);
 
 			const service = createService(
 				{ instanceType: 'main', isLeader: true },
 				memoryRepository,
-				sessionRepository,
+				memorySessionRepository,
+				chatHubSessionRepository,
 			);
 
 			await service.runCleanup();
 
 			expect(memoryRepository.deleteExpiredEntries).toHaveBeenCalledTimes(1);
-			expect(sessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
+			expect(memorySessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
+			expect(chatHubSessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
 		});
 	});
 });

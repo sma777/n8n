@@ -9,9 +9,9 @@ import {
 } from '@n8n/typeorm';
 import { StoredMessage } from 'n8n-workflow';
 
-import type { ChatHubSession } from './chat-hub-session.entity';
+import type { ChatMemorySession } from './chat-memory-session.entity';
 
-export type ChatHubMemoryRole = 'human' | 'ai' | 'system' | 'tool';
+export type ChatMemoryRole = 'human' | 'ai' | 'system' | 'tool';
 
 /**
  * Stores agent memory entries separately from chat UI messages.
@@ -20,23 +20,23 @@ export type ChatHubMemoryRole = 'human' | 'ai' | 'system' | 'tool';
  * - Memory branching on edit/retry via turnId (correlation ID for execution turns)
  * - Separation between what the agent remembers vs what the user sees
  */
-@Entity({ name: 'chat_hub_memory' })
-export class ChatHubMemory extends WithTimestamps {
+@Entity({ name: 'chat_memory' })
+export class ChatMemory extends WithTimestamps {
 	@PrimaryGeneratedColumn('uuid')
 	id: string;
 
 	/**
-	 * ID of the chat session this memory belongs to.
+	 * Session key linking this memory to a memory session.
 	 */
-	@Column({ type: String })
-	sessionId: string;
+	@Column({ type: 'varchar', length: 255 })
+	sessionKey: string;
 
 	/**
-	 * The chat session this memory belongs to.
+	 * The memory session this entry belongs to.
 	 */
-	@ManyToOne('ChatHubSession', { onDelete: 'CASCADE' })
-	@JoinColumn({ name: 'sessionId' })
-	session?: Relation<ChatHubSession>;
+	@ManyToOne('ChatMemorySession', { onDelete: 'CASCADE' })
+	@JoinColumn({ name: 'sessionKey', referencedColumnName: 'sessionKey' })
+	memorySession?: Relation<ChatMemorySession>;
 
 	/**
 	 * Correlation ID linking this memory entry to a specific execution turn.
@@ -52,7 +52,7 @@ export class ChatHubMemory extends WithTimestamps {
 	 * Role of the message: 'human', 'ai', 'system', or 'tool'.
 	 */
 	@Column({ type: 'varchar', length: 16 })
-	role: ChatHubMemoryRole;
+	role: ChatMemoryRole;
 
 	/**
 	 * The content of the memory entry.
@@ -64,7 +64,7 @@ export class ChatHubMemory extends WithTimestamps {
 	/**
 	 * Name of the actor (for tool messages, this is the tool name).
 	 */
-	@Column({ type: 'varchar', length: 256 })
+	@Column({ type: 'varchar', length: 255 })
 	name: string;
 
 	/**

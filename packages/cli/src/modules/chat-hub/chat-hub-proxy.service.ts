@@ -14,11 +14,9 @@ import {
 } from 'n8n-workflow';
 import { v4 as uuid } from 'uuid';
 
-import { ChatHubMemory } from './chat-hub-memory.entity';
-import { ChatHubMemoryRepository } from './chat-hub-memory.repository';
-import { ChatHubSessionRepository } from './chat-session.repository';
-
-import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
+import { ChatMemory } from './chat-memory.entity';
+import { ChatMemoryRepository } from './chat-memory.repository';
+import { ChatMemorySessionRepository } from './chat-memory-session.repository';
 
 const ALLOWED_NODES = [MEMORY_BUFFER_WINDOW_NODE_TYPE] as const;
 const NAME_FALLBACK = 'Workflow Chat';
@@ -33,8 +31,8 @@ export function isAllowedNode(s: string): s is AllowedNode {
 @Service()
 export class ChatHubProxyService implements ChatHubProxyProvider {
 	constructor(
-		private readonly memoryRepository: ChatHubMemoryRepository,
-		private readonly sessionRepository: ChatHubSessionRepository,
+		private readonly memoryRepository: ChatMemoryRepository,
+		private readonly memorySessionRepository: ChatMemorySessionRepository,
 		private readonly logger: Logger,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
@@ -49,7 +47,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 	async getChatHubProxy(
 		workflow: Workflow,
 		node: INode,
-		sessionId: string,
+		sessionKey: string,
 		turnId: string | null,
 		previousTurnIds: string[] | null,
 		ownerId?: string,
@@ -59,7 +57,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 		const workflowId = workflow.id;
 		const agentName = this.extractAgentName(workflow);
 		const service = this.makeChatHubOperations(
-			sessionId,
+			sessionKey,
 			turnId,
 			previousTurnIds,
 			ownerId,
@@ -96,15 +94,15 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 	}
 
 	private makeChatHubOperations(
-		sessionId: string,
+		sessionKey: string,
 		providedTurnId: string | null,
 		previousTurnIds: string[] | null,
 		ownerId: string | undefined,
 		workflowId: string | undefined,
-		agentName: string,
+		_agentName: string,
 	): IChatHubMemoryService {
 		const memoryRepository = this.memoryRepository;
-		const sessionRepository = this.sessionRepository;
+		const memorySessionRepository = this.memorySessionRepository;
 		const logger = this.logger;
 
 		// turnId is a correlation ID generated before chat workflow execution starts.
@@ -123,23 +121,23 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 			},
 
 			async getMemory(): Promise<ChatHubMemoryEntry[]> {
-				let memoryEntries: ChatHubMemory[];
+				let memoryEntries: ChatMemory[];
 
 				if (!previousTurnIds) {
 					// Manual and Chat trigger executions load all memory for the node
 					logger.debug('Loading all memory for node', {
-						sessionId,
+						sessionKey,
 					});
 
-					memoryEntries = await memoryRepository.getAllMemoryForNode(sessionId);
+					memoryEntries = await memoryRepository.getAllMemoryForNode(sessionKey);
 				} else {
 					// Chat Hub executions inject previousTurnIds to only load specified turns of the history
 					logger.debug('Loading memory for specified turns', {
-						sessionId,
+						sessionKey,
 						previousTurnIds,
 					});
 
-					memoryEntries = await memoryRepository.getMemoryByTurnIds(sessionId, previousTurnIds);
+					memoryEntries = await memoryRepository.getMemoryByTurnIds(sessionKey, previousTurnIds);
 				}
 
 				return memoryEntries.map((entry) => ({
@@ -155,7 +153,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				const id = uuid();
 				await memoryRepository.createMemoryEntry({
 					id,
-					sessionId,
+					sessionKey,
 					turnId,
 					role: 'human',
 					content: { content },
@@ -163,7 +161,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 					expiresAt: getExpiresAt(),
 				});
 				logger.debug('Added human message to memory', {
-					sessionId,
+					sessionKey,
 					memoryId: id,
 					turnId,
 				});
@@ -173,7 +171,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				const id = uuid();
 				await memoryRepository.createMemoryEntry({
 					id,
-					sessionId,
+					sessionKey,
 					turnId,
 					role: 'ai',
 					content: { content, toolCalls },
@@ -181,7 +179,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 					expiresAt: getExpiresAt(),
 				});
 				logger.debug('Added AI message to memory', {
-					sessionId,
+					sessionKey,
 					memoryId: id,
 					turnId,
 				});
@@ -196,7 +194,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				const id = uuid();
 				await memoryRepository.createMemoryEntry({
 					id,
-					sessionId,
+					sessionKey,
 					turnId,
 					role: 'tool',
 					content: { toolCallId, toolName, toolInput, toolOutput },
@@ -204,7 +202,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 					expiresAt: getExpiresAt(),
 				});
 				logger.debug('Added tool message to memory', {
-					sessionId,
+					sessionKey,
 					memoryId: id,
 					toolName,
 					turnId,
@@ -212,43 +210,24 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 			},
 
 			async clearMemory(): Promise<void> {
-				await memoryRepository.deleteBySessionId(sessionId);
-				logger.debug('Cleared memory for node', { sessionId });
+				await memoryRepository.deleteBySessionKey(sessionKey);
+				logger.debug('Cleared memory for node', { sessionKey });
 			},
 
 			async ensureSession(): Promise<void> {
-				const exists = await sessionRepository.existsById(sessionId, ownerId);
+				// Check if memory session exists
+				const exists = await memorySessionRepository.existsBySessionKey(sessionKey);
 				if (!exists) {
-					const sessionTitle = agentName;
-					try {
-						await sessionRepository.createChatSession({
-							id: sessionId,
-							ownerId: ownerId ?? null,
-							title: sessionTitle,
-							lastMessageAt: new Date(),
-							tools: [],
-							provider: 'n8n',
-							credentialId: null,
-							model: null,
-							workflowId: workflowId ?? null,
-							agentId: null,
-							agentName,
-						});
-						logger.debug('Created new chat hub session', {
-							sessionId,
-							ownerId: ownerId ?? null,
-							title: sessionTitle,
-							workflowId,
-							agentName,
-						});
-					} catch (error) {
-						logger.warn('Failed to create chat hub session', {
-							sessionId,
-							ownerId: ownerId ?? null,
-							error,
-						});
-						throw new ForbiddenError('You are not allowed to access this session');
-					}
+					// Create memory session (without requiring a chat hub session)
+					await memorySessionRepository.createSession({
+						sessionKey,
+						chatHubSessionId: null, // No chat hub session link by default
+						workflowId: workflowId ?? null,
+					});
+					logger.debug('Created new memory session', {
+						sessionKey,
+						workflowId,
+					});
 				}
 			},
 		};
