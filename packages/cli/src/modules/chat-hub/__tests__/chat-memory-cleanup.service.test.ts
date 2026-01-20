@@ -2,24 +2,21 @@ import { mockLogger } from '@n8n/backend-test-utils';
 import { mock } from 'jest-mock-extended';
 import type { InstanceSettings } from 'n8n-core';
 
-import { ChatHubMemoryCleanupService } from '../chat-hub-memory-cleanup.service';
+import { ChatMemoryCleanupService } from '../chat-memory-cleanup.service';
 import type { ChatMemoryRepository } from '../chat-memory.repository';
 import type { ChatMemorySessionRepository } from '../chat-memory-session.repository';
-import type { ChatHubSessionRepository } from '../chat-session.repository';
 
-describe('ChatHubMemoryCleanupService', () => {
+describe('ChatMemoryCleanupService', () => {
 	const createService = (
 		instanceSettings: Partial<InstanceSettings>,
 		memoryRepository?: ChatMemoryRepository,
 		memorySessionRepository?: ChatMemorySessionRepository,
-		chatHubSessionRepository?: ChatHubSessionRepository,
 	) => {
-		return new ChatHubMemoryCleanupService(
+		return new ChatMemoryCleanupService(
 			mockLogger(),
 			mock<InstanceSettings>(instanceSettings),
 			memoryRepository ?? mock<ChatMemoryRepository>(),
 			memorySessionRepository ?? mock<ChatMemorySessionRepository>(),
-			chatHubSessionRepository ?? mock<ChatHubSessionRepository>(),
 		);
 	};
 
@@ -131,33 +128,28 @@ describe('ChatHubMemoryCleanupService', () => {
 	});
 
 	describe('runCleanup', () => {
-		it('should delete expired memory entries and orphaned sessions', async () => {
+		it('should delete expired memory entries and orphaned memory sessions', async () => {
 			const memoryRepository = mock<ChatMemoryRepository>();
 			const memorySessionRepository = mock<ChatMemorySessionRepository>();
-			const chatHubSessionRepository = mock<ChatHubSessionRepository>();
 
 			memoryRepository.deleteExpiredEntries.mockResolvedValue(5);
 			memorySessionRepository.deleteOrphanedSessions.mockResolvedValue(2);
-			chatHubSessionRepository.deleteOrphanedSessions.mockResolvedValue(1);
 
 			const service = createService(
 				{ instanceType: 'main', isLeader: true },
 				memoryRepository,
 				memorySessionRepository,
-				chatHubSessionRepository,
 			);
 
 			await service.runCleanup();
 
 			expect(memoryRepository.deleteExpiredEntries).toHaveBeenCalledTimes(1);
 			expect(memorySessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
-			expect(chatHubSessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
 		});
 
 		it('should handle errors gracefully', async () => {
 			const memoryRepository = mock<ChatMemoryRepository>();
 			const memorySessionRepository = mock<ChatMemorySessionRepository>();
-			const chatHubSessionRepository = mock<ChatHubSessionRepository>();
 
 			memoryRepository.deleteExpiredEntries.mockRejectedValue(new Error('Database error'));
 
@@ -165,7 +157,6 @@ describe('ChatHubMemoryCleanupService', () => {
 				{ instanceType: 'main', isLeader: true },
 				memoryRepository,
 				memorySessionRepository,
-				chatHubSessionRepository,
 			);
 
 			// Should not throw
@@ -174,30 +165,25 @@ describe('ChatHubMemoryCleanupService', () => {
 			expect(memoryRepository.deleteExpiredEntries).toHaveBeenCalledTimes(1);
 			// Session cleanup should not be called since memory cleanup failed
 			expect(memorySessionRepository.deleteOrphanedSessions).not.toHaveBeenCalled();
-			expect(chatHubSessionRepository.deleteOrphanedSessions).not.toHaveBeenCalled();
 		});
 
-		it('should continue to delete orphaned sessions even when no memory entries are deleted', async () => {
+		it('should continue to delete orphaned memory sessions even when no memory entries are deleted', async () => {
 			const memoryRepository = mock<ChatMemoryRepository>();
 			const memorySessionRepository = mock<ChatMemorySessionRepository>();
-			const chatHubSessionRepository = mock<ChatHubSessionRepository>();
 
 			memoryRepository.deleteExpiredEntries.mockResolvedValue(0);
 			memorySessionRepository.deleteOrphanedSessions.mockResolvedValue(3);
-			chatHubSessionRepository.deleteOrphanedSessions.mockResolvedValue(0);
 
 			const service = createService(
 				{ instanceType: 'main', isLeader: true },
 				memoryRepository,
 				memorySessionRepository,
-				chatHubSessionRepository,
 			);
 
 			await service.runCleanup();
 
 			expect(memoryRepository.deleteExpiredEntries).toHaveBeenCalledTimes(1);
 			expect(memorySessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
-			expect(chatHubSessionRepository.deleteOrphanedSessions).toHaveBeenCalledTimes(1);
 		});
 	});
 });

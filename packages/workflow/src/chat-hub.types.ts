@@ -1,6 +1,6 @@
 export type ChatHubMessageType = 'human' | 'ai' | 'system' | 'tool' | 'generic';
 export type ChatHubMessageStatus = 'success' | 'error' | 'running' | 'cancelled' | 'waiting';
-export type ChatHubMemoryRole = 'human' | 'ai' | 'system' | 'tool';
+export type ChatMemoryRole = 'human' | 'ai' | 'system' | 'tool';
 
 // Structure for storing @langchain/core/messages ToolCall details
 export interface IToolCall {
@@ -103,24 +103,24 @@ export interface ChatHubMemoryMessage {
 }
 
 /**
- * Memory entry structure stored in chat_hub_memory table.
+ * Memory entry structure stored in chat_memory table.
  * Simpler than ChatHubMemoryMessage - no chaining, just linked to parent message.
  */
-export interface ChatHubMemoryEntry {
+export interface ChatMemoryEntry {
 	id: string;
-	role: ChatHubMemoryRole;
+	role: ChatMemoryRole;
 	content: StoredMessage;
 	name: string;
 	createdAt: Date;
 }
 
 /**
- * Service interface for interacting with chat hub memory for a specific node.
+ * Service interface for interacting with chat memory for a specific node.
  * Memory is stored separately from chat UI messages, allowing:
  * - Multiple memory nodes in the same workflow to have isolated memory
  * - Proper branching on edit/retry via turnId linking
  */
-export interface IChatHubMemoryService {
+export interface IChatMemoryService {
 	/** Get session owner ID (the user who owns the session), or undefined for anonymous sessions */
 	getOwnerId(): string | undefined;
 
@@ -129,7 +129,7 @@ export interface IChatHubMemoryService {
 	 * Memory is loaded based on the current message chain,
 	 * properly handling edit/retry branching.
 	 */
-	getMemory(): Promise<ChatHubMemoryEntry[]>;
+	getMemory(): Promise<ChatMemoryEntry[]>;
 
 	/**
 	 * Add a human message to memory.
@@ -164,6 +164,3 @@ export interface IChatHubMemoryService {
 	 */
 	ensureSession(): Promise<void>;
 }
-
-// Keep old interface name as alias for backwards compatibility during transition
-export type IChatHubSessionService = IChatHubMemoryService;

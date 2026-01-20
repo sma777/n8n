@@ -5,21 +5,20 @@ import { Service } from '@n8n/di';
 import { InstanceSettings } from 'n8n-core';
 import { ensureError } from 'n8n-workflow';
 
-import { ChatMemoryRepository } from './chat-memory.repository';
 import { ChatMemorySessionRepository } from './chat-memory-session.repository';
-import { ChatHubSessionRepository } from './chat-session.repository';
+import { ChatMemoryRepository } from './chat-memory.repository';
 
 const CLEANUP_INTERVAL_MS = 15 * Time.minutes.toMilliseconds;
 
 /**
- * Responsible for cleaning up expired chat hub memory entries and orphaned anonymous sessions.
+ * Responsible for cleaning up expired chat memory entries and orphaned memory sessions.
  *
  * - Runs every 15 minutes on the leader instance
  * - Deletes memory entries where expiresAt < NOW
- * - Deletes sessions that have no memory entries and no messages
+ * - Deletes memory sessions that have no memory entries
  */
 @Service()
-export class ChatHubMemoryCleanupService {
+export class ChatMemoryCleanupService {
 	private cleanupInterval: NodeJS.Timeout | undefined;
 
 	private isShuttingDown = false;
@@ -29,7 +28,6 @@ export class ChatHubMemoryCleanupService {
 		private readonly instanceSettings: InstanceSettings,
 		private readonly memoryRepository: ChatMemoryRepository,
 		private readonly memorySessionRepository: ChatMemorySessionRepository,
-		private readonly chatHubSessionRepository: ChatHubSessionRepository,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
 	}
@@ -44,7 +42,7 @@ export class ChatHubMemoryCleanupService {
 
 		this.scheduleCleanup();
 
-		this.logger.debug('Started chat hub memory cleanup timer');
+		this.logger.debug('Started chat memory cleanup timer');
 	}
 
 	@OnLeaderStepdown()
@@ -52,7 +50,7 @@ export class ChatHubMemoryCleanupService {
 		if (this.cleanupInterval) {
 			clearInterval(this.cleanupInterval);
 			this.cleanupInterval = undefined;
-			this.logger.debug('Stopped chat hub memory cleanup timer');
+			this.logger.debug('Stopped chat memory cleanup timer');
 		}
 	}
 
@@ -62,13 +60,13 @@ export class ChatHubMemoryCleanupService {
 		}, CLEANUP_INTERVAL_MS);
 
 		this.logger.debug(
-			`Chat hub memory cleanup every ${CLEANUP_INTERVAL_MS * Time.milliseconds.toMinutes} minutes`,
+			`Chat memory cleanup every ${CLEANUP_INTERVAL_MS * Time.milliseconds.toMinutes} minutes`,
 		);
 	}
 
 	async runCleanup(): Promise<void> {
 		try {
-			this.logger.debug('Running chat hub memory cleanup');
+			this.logger.debug('Running chat memory cleanup');
 
 			// Delete expired memory entries
 			const deletedMemoryCount = await this.memoryRepository.deleteExpiredEntries();
@@ -81,19 +79,10 @@ export class ChatHubMemoryCleanupService {
 			if (deletedMemorySessionCount > 0) {
 				this.logger.debug('Deleted orphaned memory sessions', { count: deletedMemorySessionCount });
 			}
-
-			// Delete orphaned chat hub sessions (with no messages)
-			const deletedChatHubSessionCount =
-				await this.chatHubSessionRepository.deleteOrphanedSessions();
-			if (deletedChatHubSessionCount > 0) {
-				this.logger.debug('Deleted orphaned chat hub sessions', {
-					count: deletedChatHubSessionCount,
-				});
-			}
 		} catch (error) {
-			this.logger.error('Failed to run chat hub memory cleanup', { error: ensureError(error) });
+			this.logger.error('Failed to run chat memory cleanup', { error: ensureError(error) });
 		} finally {
-			this.logger.debug('Chat hub memory cleanup completed');
+			this.logger.debug('Chat memory cleanup completed');
 		}
 	}
 

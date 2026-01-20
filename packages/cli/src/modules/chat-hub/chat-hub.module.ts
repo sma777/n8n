@@ -8,8 +8,8 @@ export class ChatHubModule implements ModuleInterface {
 		await import('./chat-hub.controller');
 		await import('./chat-hub.settings.controller');
 
-		const { ChatHubMemoryCleanupService } = await import('./chat-hub-memory-cleanup.service');
-		Container.get(ChatHubMemoryCleanupService).startCleanup();
+		const { ChatMemoryCleanupService } = await import('./chat-memory-cleanup.service');
+		Container.get(ChatMemoryCleanupService).startCleanup();
 	}
 
 	async settings() {
@@ -31,14 +31,14 @@ export class ChatHubModule implements ModuleInterface {
 	}
 
 	async context() {
-		const { ChatHubProxyService } = await import('./chat-hub-proxy.service');
+		const { ChatMemoryProxyService } = await import('./chat-memory-proxy.service');
 
-		return { chatHubProxyProvider: Container.get(ChatHubProxyService) };
+		return { chatHubProxyProvider: Container.get(ChatMemoryProxyService) };
 	}
 
 	@OnShutdown()
 	async shutdown() {
-		const { ChatHubMemoryCleanupService } = await import('./chat-hub-memory-cleanup.service');
-		Container.get(ChatHubMemoryCleanupService).stopCleanup();
+		const { ChatMemoryCleanupService } = await import('./chat-memory-cleanup.service');
+		Container.get(ChatMemoryCleanupService).stopCleanup();
 	}
 }

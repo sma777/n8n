@@ -1,13 +1,9 @@
 import { testDb, testModules } from '@n8n/backend-test-utils';
-import type { User } from '@n8n/db';
 import { Container } from '@n8n/di';
-import { createMember } from '@test-integration/db/users';
 
-import { ChatHubMemoryCleanupService } from '../chat-hub-memory-cleanup.service';
+import { ChatMemoryCleanupService } from '../chat-memory-cleanup.service';
 import { ChatMemoryRepository } from '../chat-memory.repository';
 import { ChatMemorySessionRepository } from '../chat-memory-session.repository';
-import { ChatHubMessageRepository } from '../chat-message.repository';
-import { ChatHubSessionRepository } from '../chat-session.repository';
 
 beforeAll(async () => {
 	await testModules.loadModules(['chat-hub']);
@@ -15,31 +11,22 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	await testDb.truncate(['ChatMemory', 'ChatMemorySession', 'ChatHubMessage', 'ChatHubSession']);
+	await testDb.truncate(['ChatMemory', 'ChatMemorySession']);
 });
 
 afterAll(async () => {
 	await testDb.terminate();
 });
 
-describe('ChatHubMemoryCleanupService integration', () => {
-	let cleanupService: ChatHubMemoryCleanupService;
+describe('ChatMemoryCleanupService integration', () => {
+	let cleanupService: ChatMemoryCleanupService;
 	let memoryRepository: ChatMemoryRepository;
 	let memorySessionRepository: ChatMemorySessionRepository;
-	let messageRepository: ChatHubMessageRepository;
-	let chatHubSessionRepository: ChatHubSessionRepository;
-	let user: User;
 
 	beforeAll(() => {
-		cleanupService = Container.get(ChatHubMemoryCleanupService);
+		cleanupService = Container.get(ChatMemoryCleanupService);
 		memoryRepository = Container.get(ChatMemoryRepository);
 		memorySessionRepository = Container.get(ChatMemorySessionRepository);
-		messageRepository = Container.get(ChatHubMessageRepository);
-		chatHubSessionRepository = Container.get(ChatHubSessionRepository);
-	});
-
-	beforeEach(async () => {
-		user = await createMember();
 	});
 
 	describe('runCleanup', () => {
@@ -185,50 +172,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 			});
 		});
 
-		describe('orphaned chat hub session cleanup', () => {
-			it('should delete chat hub sessions with no messages', async () => {
-				const sessionId = crypto.randomUUID();
-				await chatHubSessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: user.id,
-					title: 'Empty Session',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-
-				await cleanupService.runCleanup();
-
-				const session = await chatHubSessionRepository.findOne({ where: { id: sessionId } });
-				expect(session).toBeNull();
-			});
-
-			it('should not delete chat hub sessions that have messages', async () => {
-				const sessionId = crypto.randomUUID();
-				await chatHubSessionRepository.createChatSession({
-					id: sessionId,
-					ownerId: user.id,
-					title: 'Session with messages',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-
-				// Add a message to the session
-				await messageRepository.createChatMessage({
-					id: crypto.randomUUID(),
-					sessionId,
-					name: 'User',
-					type: 'human',
-					content: 'Hello',
-					createdAt: new Date(),
-				});
-
-				await cleanupService.runCleanup();
-
-				const session = await chatHubSessionRepository.findOne({ where: { id: sessionId } });
-				expect(session).not.toBeNull();
-			});
-		});
-
 		describe('affected count', () => {
 			it('should return accurate count of deleted orphaned memory sessions', async () => {
 				// Create 3 empty memory sessions (all should be deleted)
@@ -359,34 +302,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 					expiresAt: new Date(Date.now() - 1000),
 				});
 
-				// Chat Hub Session 1: Empty (should be deleted)
-				const emptyChatHubSessionId = crypto.randomUUID();
-				await chatHubSessionRepository.createChatSession({
-					id: emptyChatHubSessionId,
-					ownerId: user.id,
-					title: 'Empty Chat Hub Session',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-
-				// Chat Hub Session 2: Has messages (should be kept)
-				const messageChatHubSessionId = crypto.randomUUID();
-				await chatHubSessionRepository.createChatSession({
-					id: messageChatHubSessionId,
-					ownerId: user.id,
-					title: 'Session with messages',
-					lastMessageAt: new Date(),
-					tools: [],
-				});
-				await messageRepository.createChatMessage({
-					id: crypto.randomUUID(),
-					sessionId: messageChatHubSessionId,
-					name: 'User',
-					type: 'human',
-					content: 'Hello',
-					createdAt: new Date(),
-				});
-
 				await cleanupService.runCleanup();
 
 				// Empty memory session should be deleted
@@ -397,16 +312,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 
 				// Memory session with expired entries should be deleted
 				expect(await memorySessionRepository.getBySessionKey(expiredMemorySessionKey)).toBeNull();
-
-				// Empty chat hub session should be deleted
-				expect(
-					await chatHubSessionRepository.findOne({ where: { id: emptyChatHubSessionId } }),
-				).toBeNull();
-
-				// Chat hub session with messages should be kept
-				expect(
-					await chatHubSessionRepository.findOne({ where: { id: messageChatHubSessionId } }),
-				).not.toBeNull();
 			});
 		});
 	});

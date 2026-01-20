@@ -1,7 +1,6 @@
 import { Service } from '@n8n/di';
 import { DataSource, EntityManager, Repository } from '@n8n/typeorm';
 
-import { ChatHubMessage } from './chat-hub-message.entity';
 import { ChatHubSession, IChatHubSession } from './chat-hub-session.entity';
 
 import { NotFoundError } from '@/errors/response-errors/not-found.error';
@@ -66,7 +65,7 @@ export class ChatHubSessionRepository extends Repository<ChatHubSession> {
 		return await queryBuilder.getMany();
 	}
 
-	async existsById(id: string, userId: string | undefined, trx?: EntityManager): Promise<boolean> {
+	async existsById(id: string, userId: string, trx?: EntityManager): Promise<boolean> {
 		const em = trx ?? this.manager;
 		const session = await em.findOne(ChatHubSession, {
 			where: { id },
@@ -75,16 +74,11 @@ export class ChatHubSessionRepository extends Repository<ChatHubSession> {
 
 		if (!session) return false;
 
-		// If session has an owner, require userId to match
-		if (session.ownerId !== null) {
-			return session.ownerId === userId;
-		}
-
-		// Anonymous session - accessible by sessionId alone
-		return true;
+		// Require userId to match the session owner
+		return session.ownerId === userId;
 	}
 
-	async getOneById(id: string, userId: string | undefined, trx?: EntityManager) {
+	async getOneById(id: string, userId: string, trx?: EntityManager) {
 		const em = trx ?? this.manager;
 		const session = await em.findOne(ChatHubSession, {
 			where: { id },
@@ -99,8 +93,8 @@ export class ChatHubSessionRepository extends Repository<ChatHubSession> {
 
 		if (!session) return null;
 
-		// If session has an owner, require userId to match
-		if (session.ownerId !== null && session.ownerId !== userId) {
+		// Require userId to match the session owner
+		if (session.ownerId !== userId) {
 			return null;
 		}
 
@@ -110,30 +104,5 @@ export class ChatHubSessionRepository extends Repository<ChatHubSession> {
 	async deleteAll(trx?: EntityManager) {
 		const em = trx ?? this.manager;
 		return await em.createQueryBuilder().delete().from(ChatHubSession).execute();
-	}
-
-	/**
-	 * Delete orphaned chat hub sessions (sessions that have no messages).
-	 * @returns The number of deleted sessions
-	 */
-	async deleteOrphanedSessions(trx?: EntityManager): Promise<number> {
-		const em = trx ?? this.manager;
-
-		// Subquery for sessions that have messages
-		const sessionsWithMessages = em
-			.createQueryBuilder()
-			.select('msg.sessionId')
-			.from(ChatHubMessage, 'msg')
-			.getQuery();
-
-		// Delete sessions that have no messages
-		const result = await em
-			.createQueryBuilder()
-			.delete()
-			.from(ChatHubSession)
-			.where(`id NOT IN (${sessionsWithMessages})`)
-			.execute();
-
-		return result.affected ?? 0;
 	}
 }

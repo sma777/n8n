@@ -1,10 +1,5 @@
 import { mockDeep } from 'jest-mock-extended';
-import type {
-	ISupplyDataFunctions,
-	IChatHubMemoryService,
-	INode,
-	IWorkflowBase,
-} from 'n8n-workflow';
+import type { ISupplyDataFunctions, IChatMemoryService, INode, IWorkflowBase } from 'n8n-workflow';
 import { NodeOperationError } from 'n8n-workflow';
 
 import { MemoryBufferWindow } from './MemoryBufferWindow.node';
@@ -123,9 +118,9 @@ describe('MemoryBufferWindow', () => {
 				} as INode);
 			});
 
-			it('should use ChatHubMessageHistory when persistentMemory is true', async () => {
-				const mockMemoryService = mockDeep<IChatHubMemoryService>();
-				supplyDataFunctions.helpers.getChatHubProxy = jest
+			it('should use ChatMemoryMessageHistory when persistentMemory is true', async () => {
+				const mockMemoryService = mockDeep<IChatMemoryService>();
+				supplyDataFunctions.helpers.getChatMemoryProxy = jest
 					.fn()
 					.mockResolvedValue(mockMemoryService);
 
@@ -152,16 +147,15 @@ describe('MemoryBufferWindow', () => {
 				const result = await node.supplyData.call(supplyDataFunctions, 0);
 
 				expect(result.response).toBeDefined();
-				expect(supplyDataFunctions.helpers.getChatHubProxy).toHaveBeenCalledWith(
+				expect(supplyDataFunctions.helpers.getChatMemoryProxy).toHaveBeenCalledWith(
 					'persistent-session',
-					'node-456',
 					'turn-123',
 					['turn-1', 'turn-2'],
 				);
 			});
 
-			it('should throw error when getChatHubProxy is not available', async () => {
-				supplyDataFunctions.helpers.getChatHubProxy = undefined;
+			it('should throw error when getChatMemoryProxy is not available', async () => {
+				supplyDataFunctions.helpers.getChatMemoryProxy = undefined;
 
 				supplyDataFunctions.getNodeParameter.mockImplementation((parameterName) => {
 					switch (parameterName) {
@@ -188,8 +182,8 @@ describe('MemoryBufferWindow', () => {
 				);
 			});
 
-			it('should throw error when getChatHubProxy returns null', async () => {
-				supplyDataFunctions.helpers.getChatHubProxy = jest.fn().mockResolvedValue(null);
+			it('should throw error when getChatMemoryProxy returns null', async () => {
+				supplyDataFunctions.helpers.getChatMemoryProxy = jest.fn().mockResolvedValue(null);
 
 				supplyDataFunctions.getNodeParameter.mockImplementation((parameterName) => {
 					switch (parameterName) {
@@ -240,13 +234,13 @@ describe('MemoryBufferWindow', () => {
 				const result = await node.supplyData.call(supplyDataFunctions, 0);
 
 				expect(result.response).toBeDefined();
-				// getChatHubProxy should not be called when persistentMemory is false
-				expect(supplyDataFunctions.helpers.getChatHubProxy).not.toHaveBeenCalled();
+				// getChatMemoryProxy should not be called when persistentMemory is false
+				expect(supplyDataFunctions.helpers.getChatMemoryProxy).not.toHaveBeenCalled();
 			});
 
 			it('should handle null turnId and previousTurnIds', async () => {
-				const mockMemoryService = mockDeep<IChatHubMemoryService>();
-				supplyDataFunctions.helpers.getChatHubProxy = jest
+				const mockMemoryService = mockDeep<IChatMemoryService>();
+				supplyDataFunctions.helpers.getChatMemoryProxy = jest
 					.fn()
 					.mockResolvedValue(mockMemoryService);
 
@@ -273,9 +267,8 @@ describe('MemoryBufferWindow', () => {
 				const result = await node.supplyData.call(supplyDataFunctions, 0);
 
 				expect(result.response).toBeDefined();
-				expect(supplyDataFunctions.helpers.getChatHubProxy).toHaveBeenCalledWith(
+				expect(supplyDataFunctions.helpers.getChatMemoryProxy).toHaveBeenCalledWith(
 					'test-session',
-					'node-456',
 					null,
 					null,
 				);

@@ -2,9 +2,9 @@ import { Logger } from '@n8n/backend-common';
 import { Time } from '@n8n/constants';
 import { Service } from '@n8n/di';
 import {
-	ChatHubProxyProvider,
-	IChatHubMemoryService,
-	ChatHubMemoryEntry,
+	ChatMemoryProxyProvider,
+	IChatMemoryService,
+	ChatMemoryEntry,
 	INode,
 	Workflow,
 	UnexpectedError,
@@ -29,7 +29,7 @@ export function isAllowedNode(s: string): s is AllowedNode {
 }
 
 @Service()
-export class ChatHubProxyService implements ChatHubProxyProvider {
+export class ChatMemoryProxyService implements ChatMemoryProxyProvider {
 	constructor(
 		private readonly memoryRepository: ChatMemoryRepository,
 		private readonly memorySessionRepository: ChatMemorySessionRepository,
@@ -44,19 +44,19 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 		}
 	}
 
-	async getChatHubProxy(
+	async getChatMemoryProxy(
 		workflow: Workflow,
 		node: INode,
 		sessionKey: string,
 		turnId: string | null,
 		previousTurnIds: string[] | null,
 		ownerId?: string,
-	): Promise<IChatHubMemoryService> {
+	): Promise<IChatMemoryService> {
 		this.validateRequest(node);
 
 		const workflowId = workflow.id;
 		const agentName = this.extractAgentName(workflow);
-		const service = this.makeChatHubOperations(
+		const service = this.makeChatMemoryOperations(
 			sessionKey,
 			turnId,
 			previousTurnIds,
@@ -93,14 +93,14 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 		return NAME_FALLBACK;
 	}
 
-	private makeChatHubOperations(
+	private makeChatMemoryOperations(
 		sessionKey: string,
 		providedTurnId: string | null,
 		previousTurnIds: string[] | null,
 		ownerId: string | undefined,
 		workflowId: string | undefined,
 		_agentName: string,
-	): IChatHubMemoryService {
+	): IChatMemoryService {
 		const memoryRepository = this.memoryRepository;
 		const memorySessionRepository = this.memorySessionRepository;
 		const logger = this.logger;
@@ -120,7 +120,7 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				return ownerId;
 			},
 
-			async getMemory(): Promise<ChatHubMemoryEntry[]> {
+			async getMemory(): Promise<ChatMemoryEntry[]> {
 				let memoryEntries: ChatMemory[];
 
 				if (!previousTurnIds) {
@@ -215,10 +215,9 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 			},
 
 			async ensureSession(): Promise<void> {
-				// Check if memory session exists
 				const exists = await memorySessionRepository.existsBySessionKey(sessionKey);
+
 				if (!exists) {
-					// Create memory session (without requiring a chat hub session)
 					await memorySessionRepository.createSession({
 						sessionKey,
 						chatHubSessionId: null, // No chat hub session link by default

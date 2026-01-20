@@ -6,8 +6,8 @@ import {
 	isAIMessage,
 	isToolMessage,
 	isSystemMessage,
-	type IChatHubMemoryService,
-	type ChatHubMemoryEntry,
+	type IChatMemoryService,
+	type ChatMemoryEntry,
 } from 'n8n-workflow';
 
 /**
@@ -17,12 +17,12 @@ import {
  * - Multiple memory nodes in the same workflow to have isolated memory
  * - Proper branching on edit/retry via parentMessageId linking
  */
-export class ChatHubMessageHistory extends BaseChatMessageHistory {
-	lc_namespace = ['n8n-nodes-langchain', 'stores', 'message', 'chat_hub'];
+export class ChatMemoryMessageHistory extends BaseChatMessageHistory {
+	lc_namespace = ['n8n-nodes-langchain', 'stores', 'message', 'chat_memory'];
 
-	private memoryService: IChatHubMemoryService;
+	private memoryService: IChatMemoryService;
 
-	constructor(options: { memoryService: IChatHubMemoryService }) {
+	constructor(options: { memoryService: IChatMemoryService }) {
 		super();
 		this.memoryService = options.memoryService;
 	}
@@ -32,7 +32,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 		return entries.map((entry) => this.convertToLangChainMessage(entry));
 	}
 
-	private convertToLangChainMessage(entry: ChatHubMemoryEntry): BaseMessage {
+	private convertToLangChainMessage(entry: ChatMemoryEntry): BaseMessage {
 		switch (entry.role) {
 			case 'human': {
 				return this.asHumanMessage(entry);
@@ -57,7 +57,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 		}
 	}
 
-	private asHumanMessage(entry: ChatHubMemoryEntry): HumanMessage {
+	private asHumanMessage(entry: ChatMemoryEntry): HumanMessage {
 		if (isHumanMessage(entry.content)) {
 			const humanData = entry.content;
 			return new HumanMessage({ content: humanData.content, name: undefined });
@@ -69,7 +69,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 		}
 	}
 
-	private asAIMessage(entry: ChatHubMemoryEntry): AIMessage {
+	private asAIMessage(entry: ChatMemoryEntry): AIMessage {
 		if (isAIMessage(entry.content)) {
 			const aiData = entry.content;
 			return new AIMessage({
@@ -85,7 +85,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 		}
 	}
 
-	private asToolMessage(entry: ChatHubMemoryEntry): ToolMessage {
+	private asToolMessage(entry: ChatMemoryEntry): ToolMessage {
 		if (isToolMessage(entry.content)) {
 			const toolData = entry.content;
 			return new ToolMessage({
@@ -102,7 +102,7 @@ export class ChatHubMessageHistory extends BaseChatMessageHistory {
 		}
 	}
 
-	private asSystemMessage(entry: ChatHubMemoryEntry): SystemMessage {
+	private asSystemMessage(entry: ChatMemoryEntry): SystemMessage {
 		if (isSystemMessage(entry.content)) {
 			const systemData = entry.content;
 			return new SystemMessage({ content: systemData.content });

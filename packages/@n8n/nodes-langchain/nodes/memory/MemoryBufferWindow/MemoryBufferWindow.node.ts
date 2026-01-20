@@ -18,7 +18,7 @@ import {
 	contextWindowLengthProperty,
 	expressionSessionKeyProperty,
 } from '../descriptions';
-import { ChatHubMessageHistory } from './ChatHubMessageHistory';
+import { ChatMemoryMessageHistory } from './ChatMemoryMessageHistory';
 import { MemoryChatBufferSingleton } from './MemoryChatBufferSingleton';
 
 export class MemoryBufferWindow implements INodeType {
@@ -181,7 +181,7 @@ export class MemoryBufferWindow implements INodeType {
 			// When provided by Chat Hub, it links memory entries to the chat hub messages for edit/retry support.
 			// When null (manual executions), the proxy generates a random one to enable basic linear history.
 			// previousTurnIds contains the turnIds of messages in the active message history chain for loading correct memory.
-			const memoryService = await this.helpers.getChatHubProxy?.(
+			const memoryService = await this.helpers.getChatMemoryProxy?.(
 				sessionId,
 				turnId,
 				previousTurnIds,
@@ -194,7 +194,7 @@ export class MemoryBufferWindow implements INodeType {
 				);
 			}
 
-			const chatHistory = new ChatHubMessageHistory({
+			const chatHistory = new ChatMemoryMessageHistory({
 				memoryService,
 			});
 
