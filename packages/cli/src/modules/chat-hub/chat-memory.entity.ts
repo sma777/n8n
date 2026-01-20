@@ -14,11 +14,7 @@ import type { ChatMemorySession } from './chat-memory-session.entity';
 export type ChatMemoryRole = 'human' | 'ai' | 'system' | 'tool';
 
 /**
- * Stores agent memory entries separately from chat UI messages.
- * This allows:
- * - Multiple memory nodes in the same workflow to have isolated memory
- * - Memory branching on edit/retry via turnId (correlation ID for execution turns)
- * - Separation between what the agent remembers vs what the user sees
+ * Stores agent memory entries on n8n's database for persistent Simple Memory Node support.
  */
 @Entity({ name: 'chat_memory' })
 export class ChatMemory extends WithTimestamps {

@@ -11,11 +11,7 @@ import {
 } from 'n8n-workflow';
 
 /**
- * LangChain message history implementation that uses n8n's database for memory.
- * Memory is stored separately from chat UI messages, allowing:
- * - Memory to be different from what is shown in the chat interface
- * - Multiple memory nodes in the same workflow to have isolated memory
- * - Proper branching on edit/retry via parentMessageId linking
+ * LangChain message history implementation that uses n8n's database for memory persistence.
  */
 export class ChatMemoryMessageHistory extends BaseChatMessageHistory {
 	lc_namespace = ['n8n-nodes-langchain', 'stores', 'message', 'chat_memory'];

@@ -115,18 +115,15 @@ export interface ChatMemoryEntry {
 }
 
 /**
- * Service interface for interacting with chat memory for a specific node.
- * Memory is stored separately from chat UI messages, allowing:
- * - Multiple memory nodes in the same workflow to have isolated memory
- * - Proper branching on edit/retry via turnId linking
+ * Service interface for interacting with chat memory.
  */
 export interface IChatMemoryService {
 	/** Get session owner ID (the user who owns the session), or undefined for anonymous sessions */
 	getOwnerId(): string | undefined;
 
 	/**
-	 * Get memory entries for this node.
-	 * Memory is loaded based on the current message chain,
+	 * Get memory entries for this session.
+	 * Memory is loaded based on the current message chain if turnId / previousTurnIds are used,
 	 * properly handling edit/retry branching.
 	 */
 	getMemory(): Promise<ChatMemoryEntry[]>;
