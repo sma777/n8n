@@ -28,8 +28,9 @@ export class ChatMemorySession extends WithTimestamps {
 
 	/**
 	 * The linked chat hub session (if any).
+	 * Anonymous sessions (manual executions, chat trigger executions) don't have a chat hub session.
 	 */
-	@ManyToOne('ChatHubSession', { onDelete: 'SET NULL', nullable: true })
+	@ManyToOne('ChatHubSession', { onDelete: 'CASCADE', nullable: true })
 	@JoinColumn({ name: 'chatHubSessionId' })
 	chatHubSession?: Relation<ChatHubSession> | null;
 

@@ -51,7 +51,6 @@ export class ChatHubSession extends WithTimestamps {
 
 	/**
 	 * ID of the user that owns this chat session.
-	 * Required - anonymous sessions use chat_memory_sessions without a chat_hub_sessions record.
 	 */
 	@Column({ type: String })
 	ownerId: string;

@@ -37,7 +37,7 @@ export class CreateChatMemoryTables1768830000000 implements ReversibleMigration 
 			.withForeignKey('chatHubSessionId', {
 				tableName: table.chatHubSessions,
 				columnName: 'id',
-				onDelete: 'SET NULL',
+				onDelete: 'CASCADE',
 			}).withTimestamps;
 
 		// Create chat_memory table (to store actual memory entries)
