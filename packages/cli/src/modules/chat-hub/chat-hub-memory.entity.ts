@@ -39,13 +39,6 @@ export class ChatHubMemory extends WithTimestamps {
 	session?: Relation<ChatHubSession>;
 
 	/**
-	 * The n8n node ID of the memory node that created this memory.
-	 * Each memory node on the canvas has its own isolated memory space.
-	 */
-	@Column({ type: 'varchar', length: 36 })
-	memoryNodeId: string;
-
-	/**
 	 * Correlation ID linking this memory entry to a specific execution turn.
 	 * A "turn" represents one request-response execution cycle.
 	 * The turnId is generated BEFORE workflow execution starts and is shared

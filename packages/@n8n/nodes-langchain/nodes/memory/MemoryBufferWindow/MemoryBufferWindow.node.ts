@@ -172,7 +172,6 @@ export class MemoryBufferWindow implements INodeType {
 			nodeVersion >= 1.4 && this.getNodeParameter('persistentMemory', itemIndex, false) === true;
 
 		if (persistentMemory) {
-			const memoryNodeId = node.id;
 			const turnId = this.getNodeParameter('turnId', itemIndex) as string | null;
 			const previousTurnIds = this.getNodeParameter('previousTurnIds', itemIndex) as
 				| string[]
@@ -184,7 +183,6 @@ export class MemoryBufferWindow implements INodeType {
 			// previousTurnIds contains the turnIds of messages in the active message history chain for loading correct memory.
 			const memoryService = await this.helpers.getChatHubProxy?.(
 				sessionId,
-				memoryNodeId,
 				turnId,
 				previousTurnIds,
 			);

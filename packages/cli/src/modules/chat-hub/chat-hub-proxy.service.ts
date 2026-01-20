@@ -50,7 +50,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 		workflow: Workflow,
 		node: INode,
 		sessionId: string,
-		memoryNodeId: string,
 		turnId: string | null,
 		previousTurnIds: string[] | null,
 		ownerId?: string,
@@ -61,7 +60,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 		const agentName = this.extractAgentName(workflow);
 		const service = this.makeChatHubOperations(
 			sessionId,
-			memoryNodeId,
 			turnId,
 			previousTurnIds,
 			ownerId,
@@ -99,7 +97,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 
 	private makeChatHubOperations(
 		sessionId: string,
-		memoryNodeId: string,
 		providedTurnId: string | null,
 		previousTurnIds: string[] | null,
 		ownerId: string | undefined,
@@ -132,23 +129,17 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 					// Manual and Chat trigger executions load all memory for the node
 					logger.debug('Loading all memory for node', {
 						sessionId,
-						memoryNodeId,
 					});
 
-					memoryEntries = await memoryRepository.getAllMemoryForNode(sessionId, memoryNodeId);
+					memoryEntries = await memoryRepository.getAllMemoryForNode(sessionId);
 				} else {
 					// Chat Hub executions inject previousTurnIds to only load specified turns of the history
 					logger.debug('Loading memory for specified turns', {
 						sessionId,
-						memoryNodeId,
 						previousTurnIds,
 					});
 
-					memoryEntries = await memoryRepository.getMemoryByTurnIds(
-						sessionId,
-						memoryNodeId,
-						previousTurnIds,
-					);
+					memoryEntries = await memoryRepository.getMemoryByTurnIds(sessionId, previousTurnIds);
 				}
 
 				return memoryEntries.map((entry) => ({
@@ -165,7 +156,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				await memoryRepository.createMemoryEntry({
 					id,
 					sessionId,
-					memoryNodeId,
 					turnId,
 					role: 'human',
 					content: { content },
@@ -174,7 +164,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				});
 				logger.debug('Added human message to memory', {
 					sessionId,
-					memoryNodeId,
 					memoryId: id,
 					turnId,
 				});
@@ -185,7 +174,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				await memoryRepository.createMemoryEntry({
 					id,
 					sessionId,
-					memoryNodeId,
 					turnId,
 					role: 'ai',
 					content: { content, toolCalls },
@@ -194,7 +182,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				});
 				logger.debug('Added AI message to memory', {
 					sessionId,
-					memoryNodeId,
 					memoryId: id,
 					turnId,
 				});
@@ -210,7 +197,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				await memoryRepository.createMemoryEntry({
 					id,
 					sessionId,
-					memoryNodeId,
 					turnId,
 					role: 'tool',
 					content: { toolCallId, toolName, toolInput, toolOutput },
@@ -219,7 +205,6 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 				});
 				logger.debug('Added tool message to memory', {
 					sessionId,
-					memoryNodeId,
 					memoryId: id,
 					toolName,
 					turnId,
@@ -227,8 +212,8 @@ export class ChatHubProxyService implements ChatHubProxyProvider {
 			},
 
 			async clearMemory(): Promise<void> {
-				await memoryRepository.deleteBySessionAndNode(sessionId, memoryNodeId);
-				logger.debug('Cleared memory for node', { sessionId, memoryNodeId });
+				await memoryRepository.deleteBySessionId(sessionId);
+				logger.debug('Cleared memory for node', { sessionId });
 			},
 
 			async ensureSession(): Promise<void> {

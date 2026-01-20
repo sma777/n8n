@@ -18,17 +18,11 @@ export function getChatHubHelperFunctions(
 	const ownerId = mode !== 'manual' ? additionalData.userId : undefined;
 
 	return {
-		getChatHubProxy: async (
-			sessionId: string,
-			memoryNodeId: string,
-			turnId: string | null,
-			previousTurnIds: string[],
-		) =>
+		getChatHubProxy: async (sessionId: string, turnId: string | null, previousTurnIds: string[]) =>
 			await chatHubProxyProvider.getChatHubProxy(
 				workflow,
 				node,
 				sessionId,
-				memoryNodeId,
 				turnId,
 				previousTurnIds,
 				ownerId,

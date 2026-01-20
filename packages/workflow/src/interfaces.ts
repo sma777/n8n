@@ -1000,7 +1000,6 @@ export type ChatHubProxyProvider = {
 		workflow: Workflow,
 		node: INode,
 		sessionId: string,
-		memoryNodeId: string,
 		turnId: string | null,
 		previousTurnIds: string[],
 		ownerId?: string,
@@ -1011,7 +1010,6 @@ export type ChatHubProxyFunctions = {
 	// Optional to account for situations where the chat-hub module is disabled
 	getChatHubProxy?(
 		sessionId: string,
-		memoryNodeId: string,
 		turnId: string | null,
 		previousTurnIds: string[] | null,
 	): Promise<IChatHubMemoryService>;

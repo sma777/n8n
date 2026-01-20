@@ -49,7 +49,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: expiredId,
 					sessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'expired message' },
@@ -62,7 +61,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: validId,
 					sessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'valid message' },
@@ -96,7 +94,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: memoryId,
 					sessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'permanent message' },
@@ -169,7 +166,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
 					sessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'message' },
@@ -197,7 +193,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
 					sessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'expired message' },
@@ -272,7 +267,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 					await memoryRepository.createMemoryEntry({
 						id: crypto.randomUUID(),
 						sessionId,
-						memoryNodeId: 'node-1',
 						turnId: null,
 						role: 'human',
 						content: { content: `expired message ${i}` },
@@ -286,7 +280,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 					await memoryRepository.createMemoryEntry({
 						id: crypto.randomUUID(),
 						sessionId,
-						memoryNodeId: 'node-1',
 						turnId: null,
 						role: 'human',
 						content: { content: `valid message ${i}` },
@@ -347,7 +340,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
 					sessionId: memorySessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'valid' },
@@ -367,7 +359,6 @@ describe('ChatHubMemoryCleanupService integration', () => {
 				await memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
 					sessionId: expiredMemorySessionId,
-					memoryNodeId: 'node-1',
 					turnId: null,
 					role: 'human',
 					content: { content: 'expired' },

@@ -31,10 +31,9 @@ export class CreateChatHubMemoryTable1768830000000 implements ReversibleMigratio
 		await createTable(table.memory)
 			.withColumns(
 				column('id').uuid.primary.notNull,
+				// TODO: This can't simply be an UUID, it has to be a wildcard and the change
+				// to generate uuids for sessionIds should probably be rolled back. It also can't be too long.
 				column('sessionId').uuid.notNull,
-				column('memoryNodeId')
-					.varchar(36)
-					.notNull.comment('n8n node ID of the memory node that created this entry'),
 				column('turnId').uuid.comment(
 					'Correlation ID linking memory to an AI message turn (no FK constraint)',
 				),
@@ -53,7 +52,7 @@ export class CreateChatHubMemoryTable1768830000000 implements ReversibleMigratio
 				onDelete: 'CASCADE',
 			}).withTimestamps;
 
-		await createIndex(table.memory, ['sessionId', 'memoryNodeId', 'turnId']);
+		await createIndex(table.memory, ['sessionId', 'turnId']);
 
 		// Add turnId column to chat_hub_messages
 		await addColumns(table.messages, [
@@ -79,7 +78,7 @@ export class CreateChatHubMemoryTable1768830000000 implements ReversibleMigratio
 		);
 		await addNotNull(table.sessions, 'ownerId');
 		await dropColumns(table.messages, ['turnId']);
-		await dropIndex(table.memory, ['sessionId', 'memoryNodeId', 'turnId']);
+		await dropIndex(table.memory, ['sessionId', 'turnId']);
 		await dropTable(table.memory);
 	}
 }

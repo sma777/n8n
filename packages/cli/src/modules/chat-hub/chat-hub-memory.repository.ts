@@ -8,7 +8,6 @@ import { ChatHubMemory, type ChatHubMemoryRole } from './chat-hub-memory.entity'
 export interface CreateMemoryEntryData {
 	id: string;
 	sessionId: string;
-	memoryNodeId: string;
 	turnId: string | null;
 	role: ChatHubMemoryRole;
 	content: StoredMessage;
@@ -33,10 +32,6 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 			throw new UnexpectedError('Session ID is required');
 		}
 
-		if (!entry.memoryNodeId) {
-			throw new UnexpectedError('Memory node ID is required');
-		}
-
 		await em.insert(ChatHubMemory, entry as QueryDeepPartialEntity<ChatHubMemory>);
 		return entry.id;
 	}
@@ -48,7 +43,6 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 	 */
 	async getMemoryByTurnIds(
 		sessionId: string,
-		memoryNodeId: string,
 		turnIds: string[],
 		trx?: EntityManager,
 	): Promise<ChatHubMemory[]> {
@@ -61,7 +55,6 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 		return await em.find(ChatHubMemory, {
 			where: {
 				sessionId,
-				memoryNodeId,
 				turnId: In(turnIds),
 			},
 			order: { createdAt: 'ASC' },
@@ -72,32 +65,15 @@ export class ChatHubMemoryRepository extends Repository<ChatHubMemory> {
 	 * Get all memory entries for a session and memory node.
 	 * Used when turnId is not available (e.g., manual executions).
 	 */
-	async getAllMemoryForNode(
-		sessionId: string,
-		memoryNodeId: string,
-		trx?: EntityManager,
-	): Promise<ChatHubMemory[]> {
+	async getAllMemoryForNode(sessionId: string, trx?: EntityManager): Promise<ChatHubMemory[]> {
 		const em = trx ?? this.manager;
 
 		return await em.find(ChatHubMemory, {
 			where: {
 				sessionId,
-				memoryNodeId,
 			},
 			order: { createdAt: 'ASC' },
 		});
-	}
-
-	/**
-	 * Delete all memory entries for a session and memory node.
-	 */
-	async deleteBySessionAndNode(
-		sessionId: string,
-		memoryNodeId: string,
-		trx?: EntityManager,
-	): Promise<void> {
-		const em = trx ?? this.manager;
-		await em.delete(ChatHubMemory, { sessionId, memoryNodeId });
 	}
 
 	/**

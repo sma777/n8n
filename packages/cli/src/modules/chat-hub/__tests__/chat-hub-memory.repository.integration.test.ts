@@ -47,7 +47,6 @@ describe('ChatHubMemoryRepository', () => {
 			const id = await memoryRepository.createMemoryEntry({
 				id: entryId,
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Hello' },
@@ -70,7 +69,6 @@ describe('ChatHubMemoryRepository', () => {
 				memoryRepository.createMemoryEntry({
 					id: '',
 					sessionId,
-					memoryNodeId: 'node-1',
 					turnId,
 					role: 'human',
 					content: { content: 'Hello' },
@@ -86,30 +84,12 @@ describe('ChatHubMemoryRepository', () => {
 				memoryRepository.createMemoryEntry({
 					id: crypto.randomUUID(),
 					sessionId: '',
-					memoryNodeId: 'node-1',
 					turnId,
 					role: 'human',
 					content: { content: 'Hello' },
 					name: 'User',
 				}),
 			).rejects.toThrow('Session ID is required');
-		});
-
-		it('should throw error if memoryNodeId is missing', async () => {
-			const sessionId = await createTestSession();
-			const turnId = crypto.randomUUID();
-
-			await expect(
-				memoryRepository.createMemoryEntry({
-					id: crypto.randomUUID(),
-					sessionId,
-					memoryNodeId: '',
-					turnId,
-					role: 'human',
-					content: { content: 'Hello' },
-					name: 'User',
-				}),
-			).rejects.toThrow('Memory node ID is required');
 		});
 
 		it('should store expiresAt when provided', async () => {
@@ -121,7 +101,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: entryId,
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Hello' },
@@ -138,7 +117,7 @@ describe('ChatHubMemoryRepository', () => {
 		it('should return empty array for empty turnIds', async () => {
 			const sessionId = await createTestSession();
 
-			const result = await memoryRepository.getMemoryByTurnIds(sessionId, 'node-1', []);
+			const result = await memoryRepository.getMemoryByTurnIds(sessionId, []);
 
 			expect(result).toEqual([]);
 		});
@@ -153,7 +132,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId1,
 				role: 'human',
 				content: { content: 'Turn 1' },
@@ -162,7 +140,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId2,
 				role: 'human',
 				content: { content: 'Turn 2' },
@@ -171,17 +148,13 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId3,
 				role: 'human',
 				content: { content: 'Turn 3' },
 				name: 'User',
 			});
 
-			const result = await memoryRepository.getMemoryByTurnIds(sessionId, 'node-1', [
-				turnId1,
-				turnId3,
-			]);
+			const result = await memoryRepository.getMemoryByTurnIds(sessionId, [turnId1, turnId3]);
 
 			expect(result).toHaveLength(2);
 			// Don't assert order - timestamps may be identical causing non-deterministic ordering
@@ -198,7 +171,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'First' },
@@ -211,47 +183,17 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'ai',
 				content: { content: 'Second' },
 				name: 'AI',
 			});
 
-			const result = await memoryRepository.getMemoryByTurnIds(sessionId, 'node-1', [turnId]);
+			const result = await memoryRepository.getMemoryByTurnIds(sessionId, [turnId]);
 
 			expect(result).toHaveLength(2);
 			expect(result[0].content).toEqual({ content: 'First' });
 			expect(result[1].content).toEqual({ content: 'Second' });
-		});
-
-		it('should only return entries for the specified memory node', async () => {
-			const sessionId = await createTestSession();
-			const turnId = crypto.randomUUID();
-
-			await memoryRepository.createMemoryEntry({
-				id: crypto.randomUUID(),
-				sessionId,
-				memoryNodeId: 'node-1',
-				turnId,
-				role: 'human',
-				content: { content: 'Node 1' },
-				name: 'User',
-			});
-			await memoryRepository.createMemoryEntry({
-				id: crypto.randomUUID(),
-				sessionId,
-				memoryNodeId: 'node-2',
-				turnId,
-				role: 'human',
-				content: { content: 'Node 2' },
-				name: 'User',
-			});
-
-			const result = await memoryRepository.getMemoryByTurnIds(sessionId, 'node-1', [turnId]);
-
-			expect(result).toHaveLength(1);
-			expect(result[0].content).toEqual({ content: 'Node 1' });
 		});
 	});
 
@@ -264,7 +206,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId1,
 				role: 'human',
 				content: { content: 'Message 1' },
@@ -273,14 +214,13 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId2,
 				role: 'ai',
 				content: { content: 'Message 2' },
 				name: 'AI',
 			});
 
-			const result = await memoryRepository.getAllMemoryForNode(sessionId, 'node-1');
+			const result = await memoryRepository.getAllMemoryForNode(sessionId);
 
 			expect(result).toHaveLength(2);
 		});
@@ -288,7 +228,7 @@ describe('ChatHubMemoryRepository', () => {
 		it('should return empty array when no entries exist', async () => {
 			const sessionId = await createTestSession();
 
-			const result = await memoryRepository.getAllMemoryForNode(sessionId, 'node-1');
+			const result = await memoryRepository.getAllMemoryForNode(sessionId);
 
 			expect(result).toEqual([]);
 		});
@@ -301,7 +241,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId: session1,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Session 1' },
@@ -310,49 +249,16 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId: session2,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Session 2' },
 				name: 'User',
 			});
 
-			const result = await memoryRepository.getAllMemoryForNode(session1, 'node-1');
+			const result = await memoryRepository.getAllMemoryForNode(session1);
 
 			expect(result).toHaveLength(1);
 			expect(result[0].content).toEqual({ content: 'Session 1' });
-		});
-	});
-
-	describe('deleteBySessionAndNode', () => {
-		it('should delete all entries for a specific session and node', async () => {
-			const sessionId = await createTestSession();
-			const turnId = crypto.randomUUID();
-
-			await memoryRepository.createMemoryEntry({
-				id: crypto.randomUUID(),
-				sessionId,
-				memoryNodeId: 'node-1',
-				turnId,
-				role: 'human',
-				content: { content: 'To delete' },
-				name: 'User',
-			});
-			await memoryRepository.createMemoryEntry({
-				id: crypto.randomUUID(),
-				sessionId,
-				memoryNodeId: 'node-2',
-				turnId,
-				role: 'human',
-				content: { content: 'Keep this' },
-				name: 'User',
-			});
-
-			await memoryRepository.deleteBySessionAndNode(sessionId, 'node-1');
-
-			const remaining = await memoryRepository.find({ where: { sessionId } });
-			expect(remaining).toHaveLength(1);
-			expect(remaining[0].memoryNodeId).toBe('node-2');
 		});
 	});
 
@@ -365,7 +271,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId1,
 				role: 'human',
 				content: { content: 'Entry 1' },
@@ -374,7 +279,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-2',
 				turnId: turnId2,
 				role: 'ai',
 				content: { content: 'Entry 2' },
@@ -395,7 +299,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId: session1,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Session 1' },
@@ -404,7 +307,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId: session2,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Session 2' },
@@ -429,7 +331,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId1,
 				role: 'human',
 				content: { content: 'Expired' },
@@ -441,7 +342,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId: turnId2,
 				role: 'human',
 				content: { content: 'Valid' },
@@ -465,7 +365,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Permanent' },
@@ -488,7 +387,6 @@ describe('ChatHubMemoryRepository', () => {
 			await memoryRepository.createMemoryEntry({
 				id: crypto.randomUUID(),
 				sessionId,
-				memoryNodeId: 'node-1',
 				turnId,
 				role: 'human',
 				content: { content: 'Future expiry' },

@@ -15,7 +15,7 @@ const CLEANUP_INTERVAL_MS = 15 * Time.minutes.toMilliseconds;
  *
  * - Runs every 15 minutes on the leader instance
  * - Deletes memory entries where expiresAt < NOW
- * - Deletes anonymous sessions (ownerId is null) that have no memory entries and no messages
+ * - Deletes sessions that have no memory entries and no messages
  */
 @Service()
 export class ChatHubMemoryCleanupService {
