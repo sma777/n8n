@@ -96,6 +96,11 @@ test.describe('Routing', () => {
 		// Create and save a workflow with a node
 		const workflowName = 'Test Existing Workflow';
 		await n8n.canvas.setWorkflowName(workflowName);
+		// Commit the name change and wait for save (triggered when focus leaves input)
+		await n8n.canvas.withSaveWait(async () => {
+			await n8n.page.keyboard.press('Enter');
+		});
+		// Add node and wait for that save
 		await n8n.canvas.withSaveWait(async () => {
 			await n8n.canvas.addNode(SCHEDULE_TRIGGER_NODE_NAME, { closeNDV: true });
 		});
