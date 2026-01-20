@@ -37,8 +37,7 @@ export class ChatMemoryRepository extends Repository<ChatMemory> {
 	}
 
 	/**
-	 * Get memory entries for a specific memory node,
-	 * filtered by turn IDs (for branching support).
+	 * Get memory entries for the session, filtered by turn IDs (for branching support).
 	 * Turn IDs are correlation IDs linking memory entries to AI messages.
 	 */
 	async getMemoryByTurnIds(
