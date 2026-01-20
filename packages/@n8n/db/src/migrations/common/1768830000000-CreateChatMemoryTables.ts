@@ -19,7 +19,7 @@ const table = {
  * It's generated before workflow execution starts, so it can be used to link memory entries
  * to AI messages without requiring the AI message to exist first (avoiding FK constraint issues).
  */
-export class CreateChatHubMemoryTable1768830000000 implements ReversibleMigration {
+export class CreateChatMemoryTables1768830000000 implements ReversibleMigration {
 	async up({
 		schemaBuilder: { createTable, addColumns, column, createIndex },
 		runQuery,
