@@ -29,37 +29,25 @@ export const LOADING_ANIMATION_MIN_DURATION = 1000;
 /**
  * Debounce Timing Configuration
  *
- * Centralized debounce timing values for consistent UX and testability.
+ * Centralized debounce timing values for consistent UX.
  * All debounce operations should use these values instead of hardcoding.
  *
- * Test Mode: When enabled, all debounce times are reduced to 0 (immediate)
- * to prevent flaky tests and speed up E2E test execution.
+ * The multiplier allows adjusting all debounce times globally:
+ * - 1 = normal (default)
+ * - 0 = immediate (useful for E2E tests)
+ * - 2 = slower (useful for debugging timing issues)
+ *
+ * Set via sessionStorage key 'N8N_DEBOUNCE_MULTIPLIER' (e.g., "0" for immediate)
  */
 
-// Internal state for test mode
-let debounceTestModeEnabled = false;
-
 /**
- * Enable or disable test mode for debouncing.
- * When enabled, all debounce times return 0 (immediate execution).
- */
-export function setDebounceTestMode(enabled: boolean): void {
-	debounceTestModeEnabled = enabled;
-}
-
-/**
- * Check if debounce test mode is currently enabled.
- */
-export function isDebounceTestMode(): boolean {
-	return debounceTestModeEnabled;
-}
-
-/**
- * Get the effective debounce time, accounting for test mode.
- * Returns 0 if test mode is enabled, otherwise returns the provided time.
+ * Get the effective debounce time after applying the multiplier.
+ * @param time - Base debounce time in milliseconds
+ * @returns Adjusted time (time * multiplier)
  */
 export function getDebounceTime(time: number): number {
-	return debounceTestModeEnabled ? 0 : time;
+	const multiplier = parseFloat(sessionStorage.getItem('N8N_DEBOUNCE_MULTIPLIER') ?? '1') || 1;
+	return Math.round(time * multiplier);
 }
 
 /**
@@ -118,10 +106,3 @@ export const DEBOUNCE_TIME = {
 		WEBSOCKET_DISCONNECT: 500,
 	},
 } as const;
-
-// Expose test mode setter for Playwright
-if (typeof window !== 'undefined') {
-	(
-		window as Window & { __n8nSetDebounceTestMode?: typeof setDebounceTestMode }
-	).__n8nSetDebounceTestMode = setDebounceTestMode;
-}

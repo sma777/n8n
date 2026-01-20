@@ -136,19 +136,10 @@ export const test = base.extend<
 		await setupDefaultInterceptors(context);
 		const page = await context.newPage();
 
-		// Enable debounce test mode to eliminate debounce delays in E2E tests
-		// This prevents flakiness caused by debounce timing and speeds up test execution
+		// Set debounce multiplier to 0 for immediate execution in E2E tests
+		// This eliminates timing-based flakiness and speeds up test execution
 		await page.addInitScript(() => {
-			// Wait for the function to be available (set by durations.ts)
-			const enableTestMode = () => {
-				const win = window as Window & { __n8nSetDebounceTestMode?: (enabled: boolean) => void };
-				if (win.__n8nSetDebounceTestMode) {
-					win.__n8nSetDebounceTestMode(true);
-				}
-			};
-			// Try immediately and also on load in case app hasn't initialized yet
-			enableTestMode();
-			window.addEventListener('load', enableTestMode);
+			sessionStorage.setItem('N8N_DEBOUNCE_MULTIPLIER', '0');
 		});
 
 		const useSeparateApiContext = backendUrl !== frontendUrl;
