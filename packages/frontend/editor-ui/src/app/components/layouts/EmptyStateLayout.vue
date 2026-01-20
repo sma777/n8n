@@ -10,7 +10,9 @@ import { getResourcePermissions } from '@n8n/permissions';
 import { useProjectPages } from '@/features/collaboration/projects/composables/useProjectPages';
 import { useReadyToRunStore } from '@/features/workflows/readyToRun/stores/readyToRun.store';
 import { useTemplatesDataQualityStore } from '@/experiments/templatesDataQuality/stores/templatesDataQuality.store';
+import { useEmptyStateBuilderPromptStore } from '@/experiments/emptyStateBuilderPrompt/stores/emptyStateBuilderPrompt.store';
 import TemplatesDataQualityInlineSection from '@/experiments/templatesDataQuality/components/TemplatesDataQualityInlineSection.vue';
+import EmptyStateBuilderPrompt from '@/experiments/emptyStateBuilderPrompt/components/EmptyStateBuilderPrompt.vue';
 import type { IUser } from 'n8n-workflow';
 
 const emit = defineEmits<{
@@ -25,6 +27,7 @@ const sourceControlStore = useSourceControlStore();
 const projectPages = useProjectPages();
 const readyToRunStore = useReadyToRunStore();
 const templatesDataQualityStore = useTemplatesDataQualityStore();
+const emptyStateBuilderPromptStore = useEmptyStateBuilderPromptStore();
 
 const isLoadingReadyToRun = ref(false);
 
@@ -35,6 +38,14 @@ const readOnlyEnv = computed(() => sourceControlStore.preferences.branchReadOnly
 const projectPermissions = computed(() => {
 	return getResourcePermissions(
 		projectsStore.currentProject?.scopes ?? personalProject.value?.scopes,
+	);
+});
+
+const showBuilderPrompt = computed(() => {
+	return (
+		emptyStateBuilderPromptStore.isFeatureEnabled &&
+		!readOnlyEnv.value &&
+		projectPermissions.value.workflow.create
 	);
 });
 
@@ -86,6 +97,15 @@ const handleReadyToRunClick = async () => {
 const addWorkflow = () => {
 	emit('click:add');
 };
+
+const handleBuilderPromptSubmit = async (prompt: string) => {
+	const projectId = projectPages.isOverviewSubPage
+		? personalProject.value?.id
+		: (route.params.projectId as string);
+	const parentFolderId = route.params.folderId as string | undefined;
+
+	await emptyStateBuilderPromptStore.createWorkflowWithPrompt(prompt, projectId, parentFolderId);
+};
 </script>
 
 <template>
@@ -106,53 +126,61 @@ const addWorkflow = () => {
 				</N8nText>
 			</div>
 
-			<div
-				v-if="!readOnlyEnv && projectPermissions.workflow.create"
-				:class="$style.actionsContainer"
-			>
-				<N8nCard
-					v-if="showReadyToRunCard"
-					:class="[$style.actionCard, { [$style.loading]: isLoadingReadyToRun }]"
-					:hoverable="!isLoadingReadyToRun"
-					data-test-id="ready-to-run-card"
-					@click="handleReadyToRunClick"
+			<template v-if="showBuilderPrompt">
+				<EmptyStateBuilderPrompt
+					data-test-id="empty-state-builder-prompt"
+					@submit="handleBuilderPromptSubmit"
+				/>
+			</template>
+			<template v-else>
+				<div
+					v-if="!readOnlyEnv && projectPermissions.workflow.create"
+					:class="$style.actionsContainer"
 				>
-					<div :class="$style.cardContent">
-						<N8nIcon
-							:class="$style.cardIcon"
-							:icon="isLoadingReadyToRun ? 'spinner' : 'sparkles'"
-							color="foreground-dark"
-							:stroke-width="1.5"
-							:spin="isLoadingReadyToRun"
-						/>
-						<N8nText size="large" class="mt-xs">
-							{{ i18n.baseText('workflows.empty.readyToRun') }}
-						</N8nText>
-					</div>
-				</N8nCard>
+					<N8nCard
+						v-if="showReadyToRunCard"
+						:class="[$style.actionCard, { [$style.loading]: isLoadingReadyToRun }]"
+						:hoverable="!isLoadingReadyToRun"
+						data-test-id="ready-to-run-card"
+						@click="handleReadyToRunClick"
+					>
+						<div :class="$style.cardContent">
+							<N8nIcon
+								:class="$style.cardIcon"
+								:icon="isLoadingReadyToRun ? 'spinner' : 'sparkles'"
+								color="foreground-dark"
+								:stroke-width="1.5"
+								:spin="isLoadingReadyToRun"
+							/>
+							<N8nText size="large" class="mt-xs">
+								{{ i18n.baseText('workflows.empty.readyToRun') }}
+							</N8nText>
+						</div>
+					</N8nCard>
 
-				<N8nCard
-					:class="$style.actionCard"
-					hoverable
-					data-test-id="new-workflow-card"
-					@click="addWorkflow"
-				>
-					<div :class="$style.cardContent">
-						<N8nIcon
-							:class="$style.cardIcon"
-							icon="file"
-							color="foreground-dark"
-							:stroke-width="1.5"
-						/>
-						<N8nText size="large" class="mt-xs">
-							{{ i18n.baseText('workflows.empty.startFromScratch') }}
-						</N8nText>
-					</div>
-				</N8nCard>
-			</div>
-			<div v-if="showTemplatesDataQualityInline" :class="$style.templatesSection">
-				<TemplatesDataQualityInlineSection />
-			</div>
+					<N8nCard
+						:class="$style.actionCard"
+						hoverable
+						data-test-id="new-workflow-card"
+						@click="addWorkflow"
+					>
+						<div :class="$style.cardContent">
+							<N8nIcon
+								:class="$style.cardIcon"
+								icon="file"
+								color="foreground-dark"
+								:stroke-width="1.5"
+							/>
+							<N8nText size="large" class="mt-xs">
+								{{ i18n.baseText('workflows.empty.startFromScratch') }}
+							</N8nText>
+						</div>
+					</N8nCard>
+				</div>
+				<div v-if="showTemplatesDataQualityInline" :class="$style.templatesSection">
+					<TemplatesDataQualityInlineSection />
+				</div>
+			</template>
 		</div>
 	</div>
 </template>
