@@ -33,7 +33,7 @@ export class ChatHubModule implements ModuleInterface {
 	async context() {
 		const { ChatMemoryProxyService } = await import('./chat-memory-proxy.service');
 
-		return { chatHubProxyProvider: Container.get(ChatMemoryProxyService) };
+		return { chatMemoryProxyProvider: Container.get(ChatMemoryProxyService) };
 	}
 
 	@OnShutdown()

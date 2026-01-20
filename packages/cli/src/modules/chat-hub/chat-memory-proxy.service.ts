@@ -14,9 +14,12 @@ import {
 } from 'n8n-workflow';
 import { v4 as uuid } from 'uuid';
 
+import { ChatMemorySessionRepository } from './chat-memory-session.repository';
 import { ChatMemory } from './chat-memory.entity';
 import { ChatMemoryRepository } from './chat-memory.repository';
-import { ChatMemorySessionRepository } from './chat-memory-session.repository';
+import { ChatHubSessionRepository } from './chat-session.repository';
+
+import { ForbiddenError } from '@/errors/response-errors/forbidden.error';
 
 const ALLOWED_NODES = [MEMORY_BUFFER_WINDOW_NODE_TYPE] as const;
 const NAME_FALLBACK = 'Workflow Chat';
@@ -33,6 +36,7 @@ export class ChatMemoryProxyService implements ChatMemoryProxyProvider {
 	constructor(
 		private readonly memoryRepository: ChatMemoryRepository,
 		private readonly memorySessionRepository: ChatMemorySessionRepository,
+		private readonly chatHubSessionRepository: ChatHubSessionRepository,
 		private readonly logger: Logger,
 	) {
 		this.logger = this.logger.scoped('chat-hub');
@@ -103,6 +107,7 @@ export class ChatMemoryProxyService implements ChatMemoryProxyProvider {
 	): IChatMemoryService {
 		const memoryRepository = this.memoryRepository;
 		const memorySessionRepository = this.memorySessionRepository;
+		const chatHubSessionRepository = this.chatHubSessionRepository;
 		const logger = this.logger;
 
 		// turnId is a correlation ID generated before chat workflow execution starts.
@@ -215,19 +220,49 @@ export class ChatMemoryProxyService implements ChatMemoryProxyProvider {
 			},
 
 			async ensureSession(): Promise<void> {
-				const exists = await memorySessionRepository.existsBySessionKey(sessionKey);
+				const existingSession = await memorySessionRepository.getBySessionKey(sessionKey);
 
-				if (!exists) {
-					await memorySessionRepository.createSession({
-						sessionKey,
-						chatHubSessionId: null, // No chat hub session link by default
-						workflowId: workflowId ?? null,
-					});
-					logger.debug('Created new memory session', {
-						sessionKey,
-						workflowId,
-					});
+				if (existingSession) {
+					if (existingSession.chatHubSessionId) {
+						if (!ownerId) {
+							throw new ForbiddenError(
+								'Access denied to this memory session, userId missing from execution context',
+							);
+						}
+
+						const isOwner = await chatHubSessionRepository.existsById(
+							existingSession.chatHubSessionId,
+							ownerId,
+						);
+
+						if (!isOwner) {
+							throw new ForbiddenError('Access denied to this memory session, not found');
+						}
+					}
+
+					// Session exists and access is allowed
+					return;
 				}
+
+				let chatHubSessionId: string | null = null;
+				if (ownerId) {
+					const isOwner = await chatHubSessionRepository.existsById(sessionKey, ownerId);
+					if (isOwner) {
+						// Chat Hub executions set the 'sessionKey' as the 'chat_hub_sessions' id
+						chatHubSessionId = sessionKey;
+					}
+				}
+
+				await memorySessionRepository.createSession({
+					sessionKey,
+					chatHubSessionId,
+					workflowId: workflowId ?? null,
+				});
+				logger.debug('Created new memory session', {
+					sessionKey,
+					chatHubSessionId,
+					workflowId,
+				});
 			},
 		};
 	}

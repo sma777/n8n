@@ -9,9 +9,10 @@ import {
 	type INode,
 } from 'n8n-workflow';
 
-import { ChatMemoryRepository } from '../chat-memory.repository';
-import { ChatMemorySessionRepository } from '../chat-memory-session.repository';
 import { ChatMemoryProxyService, isAllowedNode } from '../chat-memory-proxy.service';
+import { ChatMemorySessionRepository } from '../chat-memory-session.repository';
+import { ChatMemoryRepository } from '../chat-memory.repository';
+import { ChatHubSessionRepository } from '../chat-session.repository';
 
 beforeAll(async () => {
 	await testModules.loadModules(['chat-hub']);
@@ -19,7 +20,7 @@ beforeAll(async () => {
 });
 
 beforeEach(async () => {
-	await testDb.truncate(['ChatMemory', 'ChatMemorySession', 'User']);
+	await testDb.truncate(['ChatMemory', 'ChatMemorySession', 'ChatHubSession', 'User']);
 });
 
 afterAll(async () => {
@@ -30,12 +31,14 @@ describe('ChatMemoryProxyService', () => {
 	let proxyService: ChatMemoryProxyService;
 	let memoryRepository: ChatMemoryRepository;
 	let memorySessionRepository: ChatMemorySessionRepository;
+	let chatHubSessionRepository: ChatHubSessionRepository;
 	let user: User;
 
 	beforeAll(() => {
 		proxyService = Container.get(ChatMemoryProxyService);
 		memoryRepository = Container.get(ChatMemoryRepository);
 		memorySessionRepository = Container.get(ChatMemorySessionRepository);
+		chatHubSessionRepository = Container.get(ChatHubSessionRepository);
 	});
 
 	beforeEach(async () => {
@@ -456,6 +459,252 @@ describe('ChatMemoryProxyService', () => {
 				const proxy = await proxyService.getChatMemoryProxy(workflow, node, sessionKey, null, null);
 
 				expect(proxy.getOwnerId()).toBeUndefined();
+			});
+		});
+
+		describe('chat hub session linking', () => {
+			it('should link memory session to chat hub session when it exists and ownerId matches', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const chatHubSessionId = crypto.randomUUID();
+
+				// Create a chat hub session owned by the test user
+				await chatHubSessionRepository.createChatSession({
+					id: chatHubSessionId,
+					ownerId: user.id,
+					title: 'Test Session',
+					lastMessageAt: new Date(),
+				});
+
+				// Use the chat hub session ID as the sessionKey (as happens in real chat hub executions)
+				const proxy = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId, // sessionKey = chat hub session ID
+					null,
+					null,
+					user.id, // ownerId = the user who owns the chat hub session
+				);
+
+				// Add a message to ensure the proxy works
+				await proxy.addHumanMessage('Hello from chat hub!');
+
+				// Verify the memory session is linked to the chat hub session
+				const memorySession = await memorySessionRepository.getBySessionKey(chatHubSessionId);
+				expect(memorySession).not.toBeNull();
+				expect(memorySession?.chatHubSessionId).toBe(chatHubSessionId);
+			});
+
+			it('should not link memory session when ownerId does not match chat hub session owner', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const chatHubSessionId = crypto.randomUUID();
+				const differentUserId = crypto.randomUUID();
+
+				// Create a chat hub session owned by a different user
+				const otherUser = await createMember();
+				await chatHubSessionRepository.createChatSession({
+					id: chatHubSessionId,
+					ownerId: otherUser.id,
+					title: 'Other User Session',
+					lastMessageAt: new Date(),
+				});
+
+				// Try to use with a different ownerId - memory session created but not linked
+				const proxy = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId,
+					null,
+					null,
+					differentUserId, // Different user than the chat hub session owner
+				);
+
+				await proxy.addHumanMessage('Hello!');
+
+				// Memory session should exist but NOT be linked to chat hub session
+				const memorySession = await memorySessionRepository.getBySessionKey(chatHubSessionId);
+				expect(memorySession).not.toBeNull();
+				expect(memorySession?.chatHubSessionId).toBeNull();
+			});
+
+			it('should not link memory session when no ownerId is provided', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const chatHubSessionId = crypto.randomUUID();
+
+				// Create a chat hub session
+				await chatHubSessionRepository.createChatSession({
+					id: chatHubSessionId,
+					ownerId: user.id,
+					title: 'Session Without Owner',
+					lastMessageAt: new Date(),
+				});
+
+				// Call without ownerId (anonymous execution) - memory session created but not linked
+				const proxy = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId,
+					null,
+					null,
+					// No ownerId provided
+				);
+
+				await proxy.addHumanMessage('Anonymous message');
+
+				// Memory session should exist but NOT be linked
+				const memorySession = await memorySessionRepository.getBySessionKey(chatHubSessionId);
+				expect(memorySession).not.toBeNull();
+				expect(memorySession?.chatHubSessionId).toBeNull();
+			});
+		});
+
+		describe('chat hub session access control', () => {
+			it('should deny access to linked session when no ownerId is provided', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const chatHubSessionId = crypto.randomUUID();
+
+				// Create a chat hub session owned by the test user
+				await chatHubSessionRepository.createChatSession({
+					id: chatHubSessionId,
+					ownerId: user.id,
+					title: 'Test Session',
+					lastMessageAt: new Date(),
+				});
+
+				// First call with correct ownerId to create linked memory session
+				await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId,
+					null,
+					null,
+					user.id,
+				);
+
+				// Verify memory session is linked
+				const memorySession = await memorySessionRepository.getBySessionKey(chatHubSessionId);
+				expect(memorySession?.chatHubSessionId).toBe(chatHubSessionId);
+
+				// Try to access without ownerId - should throw
+				await expect(
+					proxyService.getChatMemoryProxy(workflow, node, chatHubSessionId, null, null),
+				).rejects.toThrow(
+					'Access denied to this memory session, userId missing from execution context',
+				);
+			});
+
+			it('should deny access to linked session when ownerId does not match', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const chatHubSessionId = crypto.randomUUID();
+
+				// Create a chat hub session owned by the test user
+				await chatHubSessionRepository.createChatSession({
+					id: chatHubSessionId,
+					ownerId: user.id,
+					title: 'Test Session',
+					lastMessageAt: new Date(),
+				});
+
+				// First call with correct ownerId to create linked memory session
+				await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId,
+					null,
+					null,
+					user.id,
+				);
+
+				// Try to access with different ownerId - should throw
+				const differentUserId = crypto.randomUUID();
+				await expect(
+					proxyService.getChatMemoryProxy(
+						workflow,
+						node,
+						chatHubSessionId,
+						null,
+						null,
+						differentUserId,
+					),
+				).rejects.toThrow('Access denied to this memory session');
+			});
+
+			it('should allow access to linked session with correct ownerId', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const chatHubSessionId = crypto.randomUUID();
+
+				// Create a chat hub session owned by the test user
+				await chatHubSessionRepository.createChatSession({
+					id: chatHubSessionId,
+					ownerId: user.id,
+					title: 'Test Session',
+					lastMessageAt: new Date(),
+				});
+
+				// First call to create linked memory session
+				const proxy1 = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId,
+					null,
+					null,
+					user.id,
+				);
+				await proxy1.addHumanMessage('First message');
+
+				// Second call with same ownerId - should succeed
+				const proxy2 = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					chatHubSessionId,
+					null,
+					null,
+					user.id,
+				);
+				await proxy2.addHumanMessage('Second message');
+
+				// Verify both messages exist
+				const entries = await memoryRepository.find({ where: { sessionKey: chatHubSessionId } });
+				expect(entries).toHaveLength(2);
+			});
+
+			it('should allow access to unlinked session without ownerId', async () => {
+				const workflow = createTestWorkflow();
+				const node = createMemoryNode();
+				const sessionKey = `standalone-${crypto.randomUUID()}`;
+
+				// Create unlinked memory session (standalone memory usage)
+				const proxy1 = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					sessionKey,
+					null,
+					null,
+				);
+				await proxy1.addHumanMessage('First message');
+
+				// Verify session is not linked
+				const memorySession = await memorySessionRepository.getBySessionKey(sessionKey);
+				expect(memorySession?.chatHubSessionId).toBeNull();
+
+				// Access again without ownerId - should succeed
+				const proxy2 = await proxyService.getChatMemoryProxy(
+					workflow,
+					node,
+					sessionKey,
+					null,
+					null,
+				);
+				await proxy2.addHumanMessage('Second message');
+
+				// Verify both messages exist
+				const entries = await memoryRepository.find({ where: { sessionKey } });
+				expect(entries).toHaveLength(2);
 			});
 		});
 	});
