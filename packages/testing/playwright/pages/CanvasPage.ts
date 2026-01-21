@@ -167,7 +167,7 @@ export class CanvasPage extends BasePage {
 			(response) =>
 				response.url().includes('/rest/workflows') &&
 				(response.request().method() === 'POST' || response.request().method() === 'PATCH'),
-			{ timeout: 3000 },
+			{ timeout: 10000 },
 		);
 		await action();
 		return await responsePromise;

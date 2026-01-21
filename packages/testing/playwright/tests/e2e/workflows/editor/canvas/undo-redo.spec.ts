@@ -233,8 +233,9 @@ test.describe('Undo/Redo', () => {
 		await expect(n8n.canvas.nodeConnections()).toHaveCount(1);
 		await expect(n8n.canvas.getNodeInputHandles('Switch')).toHaveCount(1);
 
-		// Wait for clipboard paste throttling
-		await n8n.waitForDebounce(1000);
+		// Wait for clipboard paste throttling (use fixed wait, not debounce-adjusted)
+		// eslint-disable-next-line playwright/no-wait-for-timeout
+		await n8n.page.waitForTimeout(1000);
 
 		await n8n.canvas.canvasPane().click();
 		await n8n.clipboard.paste(workflowJson);
