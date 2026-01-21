@@ -24,7 +24,7 @@ import { createLogger } from '../harness/logger';
 const silentLogger = createLogger(false);
 
 jest.mock('langsmith/evaluation', () => ({
-	evaluate: jest.fn(),
+	evaluate: jest.fn().mockResolvedValue({ experimentName: 'test-experiment' }),
 }));
 
 jest.mock('langsmith/traceable', () => ({
