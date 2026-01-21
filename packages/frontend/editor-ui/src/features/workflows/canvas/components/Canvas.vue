@@ -564,25 +564,32 @@ const edgesHoveredById = ref<Record<string, boolean>>({});
 const edgesBringToFrontById = ref<Record<string, boolean>>({});
 
 onEdgeMouseEnter(({ edge }) => {
-	edgesBringToFrontById.value = { [edge.id]: true };
 	edgesHoveredById.value = { [edge.id]: true };
+
+	// For multi-connection AiTool edges, always keep them back to avoid toolbar overlapping plus handles
+	// The toolbar label position is fixed along the edge and can't be predicted from mouse position
+	if (
+		edge.data?.source?.type === NodeConnectionTypes.AiTool &&
+		(!edge.data.maxConnections || edge.data.maxConnections > 1)
+	) {
+		edgesBringToFrontById.value = { [edge.id]: false };
+	} else {
+		// For non-AiTool edges, always bring to front
+		edgesBringToFrontById.value = { [edge.id]: true };
+	}
 });
 
 onEdgeMouseMove(
-	useThrottleFn(({ edge, event }) => {
-		const type = edge.data.source.type;
+	useThrottleFn(({ edge }) => {
+		const type = edge.data?.source?.type;
 		if (type !== NodeConnectionTypes.AiTool) {
 			return;
 		}
 
 		if (!edge.data.maxConnections || edge.data.maxConnections > 1) {
-			const projectedPosition = getProjectedPosition(event);
-			const yDiff = projectedPosition.y - edge.targetY;
-			if (yDiff < 4 * GRID_SIZE) {
-				edgesBringToFrontById.value = { [edge.id]: false };
-			} else {
-				edgesBringToFrontById.value = { [edge.id]: true };
-			}
+			// For multi-connection AiTool edges, always keep back to prevent toolbar overlap with plus handles
+			// The toolbar label position is fixed along the edge path and cannot be reliably predicted from mouse position
+			edgesBringToFrontById.value = { [edge.id]: false };
 		}
 	}, 100),
 );
@@ -593,7 +600,11 @@ onEdgeMouseLeave(({ edge }) => {
 });
 
 function onUpdateEdgeLabelHovered(id: string, hovered: boolean) {
-	edgesBringToFrontById.value = { [id]: true };
+	// Don't override bring-to-front for AiTool edges - they should stay back
+	// Only set to true if it's not already explicitly set to false
+	if (edgesBringToFrontById.value[id] !== false) {
+		edgesBringToFrontById.value = { [id]: true };
+	}
 	edgesHoveredById.value[id] = hovered;
 }
 

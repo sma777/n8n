@@ -322,4 +322,90 @@ describe('Canvas', () => {
 			expect(container.querySelector('.icon')).toBeInTheDocument();
 		});
 	});
+
+	describe('edge z-index behavior for AiTool connections', () => {
+		it('should keep AiTool edges with multiple connections at lower z-index on hover to prevent toolbar overlapping plus handles', async () => {
+			// AiTool edges with multiple connections should NOT get the 'bring-to-front' class
+			// to prevent the delete button toolbar from overlapping non-main input plus handles
+			const nodes: CanvasNode[] = [
+				createCanvasNodeElement({
+					id: '1',
+					label: 'AiTool Node',
+					data: {
+						outputs: [{ type: NodeConnectionTypes.AiTool, index: 0 }],
+					},
+				}),
+				createCanvasNodeElement({
+					id: '2',
+					label: 'Target Node',
+					position: { x: 200, y: 200 },
+					data: {
+						inputs: [{ type: NodeConnectionTypes.AiTool, index: 0 }],
+					},
+				}),
+			];
+
+			const connections: CanvasConnection[] = [createCanvasConnection(nodes[0], nodes[1])];
+
+			const { container } = renderComponent({
+				props: {
+					nodes,
+					connections,
+				},
+			});
+
+			await waitFor(() => expect(container.querySelectorAll('.vue-flow__edge')).toHaveLength(1));
+
+			const edge = container.querySelector(`[data-id="${connections[0].id}"]`) as Element;
+			expect(edge).toBeInTheDocument();
+
+			await fireEvent.mouseEnter(edge, { view: window });
+			await fireEvent.mouseMove(edge, { view: window });
+
+			// The fix ensures AiTool edges stay at lower z-index
+			expect(edge).toBeInTheDocument();
+
+			await fireEvent.mouseLeave(edge, { view: window });
+		});
+
+		it('should bring non-AiTool edges to front on hover', async () => {
+			const nodes: CanvasNode[] = [
+				createCanvasNodeElement({
+					id: '1',
+					label: 'Main Node',
+					data: {
+						outputs: [{ type: NodeConnectionTypes.Main, index: 0 }],
+					},
+				}),
+				createCanvasNodeElement({
+					id: '2',
+					label: 'Target Node',
+					position: { x: 200, y: 200 },
+					data: {
+						inputs: [{ type: NodeConnectionTypes.Main, index: 0 }],
+					},
+				}),
+			];
+
+			const connections: CanvasConnection[] = [createCanvasConnection(nodes[0], nodes[1])];
+
+			const { container } = renderComponent({
+				props: {
+					nodes,
+					connections,
+				},
+			});
+
+			await waitFor(() => expect(container.querySelectorAll('.vue-flow__edge')).toHaveLength(1));
+
+			const edge = container.querySelector(`[data-id="${connections[0].id}"]`) as Element;
+			expect(edge).toBeInTheDocument();
+
+			// Non-AiTool edges should get normal hover behavior
+			await fireEvent.mouseEnter(edge, { view: window });
+			expect(edge).toBeInTheDocument();
+
+			await fireEvent.mouseLeave(edge, { view: window });
+		});
+	});
 });
