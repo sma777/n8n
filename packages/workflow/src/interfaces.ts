@@ -2587,13 +2587,9 @@ export interface ITaskMetadata {
 	browserApi?:
 		| {
 				type: 'notification';
-				/** Notification data (when type is 'notification') */
 				notification: {
-					/** The title of the notification */
 					title: string;
-					/** The body text of the notification */
 					body?: string;
-					/** URL to an icon image */
 					icon?: string;
 				};
 		  }

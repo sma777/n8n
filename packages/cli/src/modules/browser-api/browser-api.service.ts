@@ -1,9 +1,11 @@
+import type { PushMessage } from '@n8n/api-types';
 import { Logger } from '@n8n/backend-common';
 import { OnLifecycleEvent, type NodeExecuteAfterContext } from '@n8n/decorators';
 import { Service } from '@n8n/di';
+import { ensureError } from 'n8n-workflow';
 
-import { OwnershipService } from '@/services/ownership.service';
 import { Push } from '@/push';
+import { OwnershipService } from '@/services/ownership.service';
 
 /**
  * Service that handles browser API calls triggered by workflow nodes.
@@ -14,10 +16,6 @@ import { Push } from '@/push';
  * (for manual executions) or to the workflow owner (for production executions).
  * Messages are never broadcast to all connected users.
  *
- * Supported types:
- * - 'notification': Display a native browser notification
- *
- * Future types can include: 'playSound', 'textToSpeech', 'updateTitle', etc.
  */
 @Service()
 export class BrowserApiService {
@@ -38,13 +36,13 @@ export class BrowserApiService {
 		}
 
 		const pushMessage = {
-			type: 'browserApi' as const,
+			type: 'browserApi',
 			data: {
 				...browserApi,
 				workflowId: ctx.workflow.id,
 				workflowName: ctx.workflow.name,
 			},
-		};
+		} as PushMessage;
 
 		const pushRef = ctx.executionData.pushRef;
 		if (pushRef) {
@@ -94,7 +92,7 @@ export class BrowserApiService {
 			this.logger.warn('Failed to determine workflow owner for browser API message', {
 				workflowId: ctx.workflow.id,
 				nodeName: ctx.nodeName,
-				error: error instanceof Error ? error.message : String(error),
+				error: ensureError(error),
 			});
 		}
 	}

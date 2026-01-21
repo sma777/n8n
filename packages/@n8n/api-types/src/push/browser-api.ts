@@ -24,9 +24,6 @@ export type BrowserApiPlaySoundData = {
 	};
 };
 
-// Future browser API types can be added here:
-
-// Union of all browser API data types
 export type BrowserApiData = BrowserApiNotificationData | BrowserApiPlaySoundData;
 
 export type BrowserApiPushMessage = {
