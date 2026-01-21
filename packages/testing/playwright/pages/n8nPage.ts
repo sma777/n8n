@@ -214,8 +214,9 @@ export class n8nPage {
 	 */
 	async waitForDebounce(baseTime = 150): Promise<void> {
 		const effectiveTime = await this.page.evaluate((time) => {
-			const multiplier = parseFloat(sessionStorage.getItem('N8N_DEBOUNCE_MULTIPLIER') ?? '1') || 1;
-			return Math.round(time * multiplier);
+			const stored = sessionStorage.getItem('N8N_DEBOUNCE_MULTIPLIER');
+			const multiplier = stored !== null ? parseFloat(stored) : 1;
+			return Math.round(time * (Number.isNaN(multiplier) ? 1 : multiplier));
 		}, baseTime);
 
 		if (effectiveTime > 0) {

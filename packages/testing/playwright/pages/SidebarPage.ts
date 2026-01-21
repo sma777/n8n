@@ -47,7 +47,14 @@ export class SidebarPage {
 	async addWorkflowFromUniversalAdd(projectName: string) {
 		await this.universalAdd();
 		await this.page.getByTestId('universal-add').getByText('Workflow').click();
-		await this.page.getByTestId('universal-add').getByRole('link', { name: projectName }).click();
+		// Wait for navigation and settings load to ensure the new workflow page is ready
+		await Promise.all([
+			this.page.getByTestId('universal-add').getByRole('link', { name: projectName }).click(),
+			this.page.waitForResponse(
+				(res) => res.url().includes('/rest/settings') && res.status() === 200,
+			),
+		]);
+		await this.page.getByTestId('node-creator-plus-button').waitFor({ state: 'visible' });
 	}
 
 	async openNewCredentialDialogForProject(projectName: string) {

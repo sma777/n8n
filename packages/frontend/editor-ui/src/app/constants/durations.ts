@@ -46,8 +46,9 @@ export const LOADING_ANIMATION_MIN_DURATION = 1000;
  * @returns Adjusted time (time * multiplier)
  */
 export function getDebounceTime(time: number): number {
-	const multiplier = parseFloat(sessionStorage.getItem('N8N_DEBOUNCE_MULTIPLIER') ?? '1') || 1;
-	return Math.round(time * multiplier);
+	const stored = sessionStorage.getItem('N8N_DEBOUNCE_MULTIPLIER');
+	const multiplier = stored !== null ? parseFloat(stored) : 1;
+	return Math.round(time * (Number.isNaN(multiplier) ? 1 : multiplier));
 }
 
 /**
